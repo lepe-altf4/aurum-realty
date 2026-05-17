@@ -1,13 +1,10 @@
-import { createClient } from '@/lib/supabase/server'
+import { createAdminClient } from '@/lib/supabase/admin'
 import PipelineView from '@/components/pipeline/pipeline-view'
 
 export default async function PipelinePage() {
-  const supabase = await createClient()
-  const [
-    { data: leads },
-    { data: stages },
-    { data: agents },
-  ] = await Promise.all([
+  const supabase = createAdminClient()
+
+  const [leadsRes, stagesRes, agentsRes] = await Promise.all([
     supabase
       .from('leads')
       .select('*, property:properties(*), stage:pipeline_stages(*), agent:agents(*)')
@@ -16,5 +13,11 @@ export default async function PipelinePage() {
     supabase.from('agents').select('*').eq('status', 'Activo'),
   ])
 
-  return <PipelineView initialLeads={leads ?? []} stages={stages ?? []} agents={agents ?? []} />
+  return (
+    <PipelineView
+      initialLeads={leadsRes.data ?? []}
+      stages={stagesRes.data ?? []}
+      agents={agentsRes.data ?? []}
+    />
+  )
 }

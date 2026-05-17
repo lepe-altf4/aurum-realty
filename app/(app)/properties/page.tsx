@@ -1,8 +1,9 @@
-import { createClient } from '@/lib/supabase/server'
+import { createAdminClient } from '@/lib/supabase/admin'
 import PropertiesView from '@/components/properties/properties-view'
 
 export default async function PropertiesPage() {
-  const supabase = await createClient()
+  const supabase = createAdminClient()
+
   const { data: properties } = await supabase
     .from('properties')
     .select('*')

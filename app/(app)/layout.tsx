@@ -1,15 +1,17 @@
 import { redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
+import { createAdminClient } from '@/lib/supabase/admin'
 import Sidebar from '@/components/sidebar'
 
 export default async function AppLayout({ children }: { children: React.ReactNode }) {
+  // Auth check uses the user's own session (cookie-based)
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) redirect('/login')
 
-  // Find agent by auth_user_id first, fall back to email match
-  // (handles users who registered before the trigger was set up)
-  const { data: agent } = await supabase
+  // Data fetch uses admin client (bypasses RLS — safe because auth is already verified above)
+  const admin = createAdminClient()
+  const { data: agent } = await admin
     .from('agents')
     .select('*')
     .or(`auth_user_id.eq.${user.id},email.eq.${user.email}`)
