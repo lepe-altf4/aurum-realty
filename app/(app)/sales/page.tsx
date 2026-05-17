@@ -2,7 +2,18 @@ import { createAdminClient } from '@/lib/supabase/admin'
 import SalesPanel from '@/components/sales/sales-panel'
 
 export default async function SalesPage() {
-  const supabase = createAdminClient()
+  let supabase
+  try {
+    supabase = createAdminClient()
+  } catch (err: unknown) {
+    const msg = err instanceof Error ? err.message : String(err)
+    return (
+      <div className="p-8 text-red-600">
+        <h2 className="text-xl font-bold mb-2">Configuration Error</h2>
+        <p className="font-mono text-sm">{msg}</p>
+      </div>
+    )
+  }
 
   const [leadsRes, stagesRes, agentsRes] = await Promise.all([
     supabase
@@ -12,6 +23,10 @@ export default async function SalesPage() {
     supabase.from('pipeline_stages').select('*').order('position', { ascending: true }),
     supabase.from('agents').select('*').order('name'),
   ])
+
+  if (leadsRes.error) {
+    console.error('[SalesPage] leads query error:', leadsRes.error)
+  }
 
   return (
     <SalesPanel

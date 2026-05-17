@@ -10,14 +10,21 @@ export default async function AppLayout({ children }: { children: React.ReactNod
   if (!user) redirect('/login')
 
   // Data fetch uses admin client (bypasses RLS — safe because auth is already verified above)
-  const admin = createAdminClient()
-  const { data: agent } = await admin
-    .from('agents')
-    .select('*')
-    .or(`auth_user_id.eq.${user.id},email.eq.${user.email}`)
-    .order('auth_user_id', { ascending: false, nullsFirst: false })
-    .limit(1)
-    .maybeSingle()
+  // If the service role key is misconfigured we still render the shell without agent data.
+  let agent = null
+  try {
+    const admin = createAdminClient()
+    const { data } = await admin
+      .from('agents')
+      .select('*')
+      .or(`auth_user_id.eq.${user.id},email.eq.${user.email}`)
+      .order('auth_user_id', { ascending: false, nullsFirst: false })
+      .limit(1)
+      .maybeSingle()
+    agent = data
+  } catch (err) {
+    console.error('[AppLayout] createAdminClient error:', err)
+  }
 
   return (
     <div className="app-shell">
