@@ -176,6 +176,27 @@ alter table properties      enable row level security;
 alter table leads           enable row level security;
 alter table activities      enable row level security;
 
+-- Drop existing policies first so this migration is fully idempotent.
+drop policy if exists "Public read stages"     on pipeline_stages;
+drop policy if exists "Auth manage stages"     on pipeline_stages;
+drop policy if exists "Auth read agents"       on agents;
+drop policy if exists "Auth insert agents"     on agents;
+drop policy if exists "Auth update agents"     on agents;
+drop policy if exists "Auth delete agents"     on agents;
+drop policy if exists "Auth read org"          on organization;
+drop policy if exists "Auth update org"        on organization;
+drop policy if exists "Auth read properties"   on properties;
+drop policy if exists "Auth insert properties" on properties;
+drop policy if exists "Auth update properties" on properties;
+drop policy if exists "Auth delete properties" on properties;
+drop policy if exists "Auth read leads"        on leads;
+drop policy if exists "Auth insert leads"      on leads;
+drop policy if exists "Auth update leads"      on leads;
+drop policy if exists "Auth delete leads"      on leads;
+drop policy if exists "Auth read activities"   on activities;
+drop policy if exists "Auth insert activities" on activities;
+drop policy if exists "Auth delete activities" on activities;
+
 -- pipeline_stages: public read, auth write
 create policy "Public read stages"         on pipeline_stages for select using (true);
 create policy "Auth manage stages"         on pipeline_stages for all    using (auth.role() = 'authenticated');
@@ -208,11 +229,15 @@ create policy "Auth insert activities"     on activities for insert with check (
 create policy "Auth delete activities"     on activities for delete using (auth.role() = 'authenticated');
 
 -- ──────────────────────────────────────────────────────────────
--- 8. REALTIME
+-- 8. REALTIME (idempotent — ignore if already in publication)
 -- ──────────────────────────────────────────────────────────────
-alter publication supabase_realtime add table leads;
-alter publication supabase_realtime add table activities;
-alter publication supabase_realtime add table properties;
+do $$
+begin
+  begin alter publication supabase_realtime add table leads;      exception when duplicate_object then null; end;
+  begin alter publication supabase_realtime add table activities; exception when duplicate_object then null; end;
+  begin alter publication supabase_realtime add table properties; exception when duplicate_object then null; end;
+end;
+$$;
 
 -- ──────────────────────────────────────────────────────────────
 -- 9. SEED DATA — 12 PROPERTIES
