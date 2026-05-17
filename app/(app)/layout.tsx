@@ -7,11 +7,15 @@ export default async function AppLayout({ children }: { children: React.ReactNod
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) redirect('/login')
 
+  // Find agent by auth_user_id first, fall back to email match
+  // (handles users who registered before the trigger was set up)
   const { data: agent } = await supabase
     .from('agents')
     .select('*')
-    .eq('auth_user_id', user.id)
-    .single()
+    .or(`auth_user_id.eq.${user.id},email.eq.${user.email}`)
+    .order('auth_user_id', { ascending: false, nullsFirst: false })
+    .limit(1)
+    .maybeSingle()
 
   return (
     <div className="app-shell">
