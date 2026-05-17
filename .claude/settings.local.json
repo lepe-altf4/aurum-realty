@@ -8,7 +8,21 @@
       "Bash(Get-ChildItem -Path \"C:\\\\Users\\\\PC\\\\Desktop\\\\CRMSSS\" -Recurse -Directory)",
       "Bash(Select-Object -ExpandProperty FullName)",
       "Bash(npm install *)",
-      "PowerShell(Set-Location \"C:\\\\Users\\\\PC\\\\Desktop\\\\crm aurum realty\"; git add app\\\\\\(app\\\\\\)\\\\sales\\\\page.tsx app\\\\\\(app\\\\\\)\\\\dashboard\\\\page.tsx app\\\\\\(app\\\\\\)\\\\settings\\\\page.tsx components\\\\sales\\\\sales-panel.tsx components\\\\dashboard\\\\executive-dashboard.tsx components\\\\settings\\\\admin-settings.tsx)"
+      "PowerShell(Set-Location \"C:\\\\Users\\\\PC\\\\Desktop\\\\crm aurum realty\"; git add app\\\\\\(app\\\\\\)\\\\sales\\\\page.tsx app\\\\\\(app\\\\\\)\\\\dashboard\\\\page.tsx app\\\\\\(app\\\\\\)\\\\settings\\\\page.tsx components\\\\sales\\\\sales-panel.tsx components\\\\dashboard\\\\executive-dashboard.tsx components\\\\settings\\\\admin-settings.tsx)",
+      "Bash(Remove-Item -Path \"C:\\\\Users\\\\PC\\\\Desktop\\\\crm aurum realty\\\\app\\\\api\\\\debug\\\\route.ts\" -Force)",
+      "Bash(Remove-Item -Path \"C:\\\\Users\\\\PC\\\\Desktop\\\\crm aurum realty\\\\app\\\\api\\\\debug\" -Force -ErrorAction SilentlyContinue)",
+      "Bash(git add *)",
+      "Bash(git commit -m ' *)",
+      "Bash(git push *)",
+      "WebFetch(domain:aurum-realty-zeta.vercel.app)",
+      "Bash(npx vercel *)",
+      "Bash(python3 -c \"import sys,json; d=json.load\\(sys.stdin\\); print\\(d.get\\('token','NO_TOKEN'\\)[:20]+'...'\\)\")",
+      "Bash(python3 -c \"import sys,json; d=json.load\\(sys.stdin\\); t=d.get\\('token',''\\); print\\('TOKEN:',t[:30]+'...' if t else 'NONE'\\)\")",
+      "Bash(find / -name \"auth.json\" -path \"*vercel*\" 2>/dev/null | head -5)",
+      "Bash(git commit *)",
+      "WebFetch(domain:aurum-realty-ooinmvc5r-mateo-lepe-s-projects.vercel.app)",
+      "Bash(npx supabase *)",
+      "Bash(node -e ' *)"
     ]
   }
 }
