@@ -1,0 +1,14 @@
+{
+  "permissions": {
+    "allow": [
+      "WebFetch(domain:api.anthropic.com)",
+      "PowerShell(Get-ChildItem \"C:\\\\Users\\\\PC\\\\Desktop\\\\crm aurum realty\" | ForEach-Object { \"$\\($_.Name\\)\" })",
+      "Read(//mnt/c/Users/PC/Desktop/crm aurum realty/**)",
+      "PowerShell(npm install -g vercel 2>&1)",
+      "Bash(Get-ChildItem -Path \"C:\\\\Users\\\\PC\\\\Desktop\\\\CRMSSS\" -Recurse -Directory)",
+      "Bash(Select-Object -ExpandProperty FullName)",
+      "Bash(npm install *)",
+      "PowerShell(Set-Location \"C:\\\\Users\\\\PC\\\\Desktop\\\\crm aurum realty\"; git add app\\\\\\(app\\\\\\)\\\\sales\\\\page.tsx app\\\\\\(app\\\\\\)\\\\dashboard\\\\page.tsx app\\\\\\(app\\\\\\)\\\\settings\\\\page.tsx components\\\\sales\\\\sales-panel.tsx components\\\\dashboard\\\\executive-dashboard.tsx components\\\\settings\\\\admin-settings.tsx)"
+    ]
+  }
+}
