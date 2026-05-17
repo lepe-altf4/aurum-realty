@@ -16,19 +16,28 @@ export async function GET() {
   }
 
   // Try a real DB query
-  let dbResult: { leads_count?: number; error?: string } = {}
+  let dbResult: Record<string, unknown> = {}
   try {
     const admin = createAdminClient()
-    const { data, error, count } = await admin
+    const { data, error, count, status, statusText } = await admin
       .from('leads')
       .select('id', { count: 'exact', head: true })
+
     if (error) {
-      dbResult = { error: error.message }
+      dbResult = {
+        ok: false,
+        status,
+        statusText,
+        error_code: error.code,
+        error_message: error.message,
+        error_details: error.details,
+        error_hint: error.hint,
+      }
     } else {
-      dbResult = { leads_count: count ?? 0 }
+      dbResult = { ok: true, leads_count: count ?? 0, status }
     }
   } catch (e) {
-    dbResult = { error: e instanceof Error ? e.message : String(e) }
+    dbResult = { ok: false, thrown: e instanceof Error ? e.message : String(e) }
   }
 
   return NextResponse.json({
