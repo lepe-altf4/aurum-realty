@@ -148,6 +148,8 @@ function BarChart({ data, labels, currency, dollarRate }: { data: number[]; labe
 }
 
 // ── PDF export ────────────────────────────────────────────────────────────────
+const MONTH_NAMES_ES_FULL = ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre']
+
 function exportPDF(params: {
   leads: Lead[]
   agents: Agent[]
@@ -159,15 +161,43 @@ function exportPDF(params: {
   avgTicketUSD: number
   activeProperties: number
   period: 'monthly' | 'annual'
+  month?: number
+  year?: number
 }) {
-  const { leads, agents, dollarRate, currency, closureRate, closed, totalAmountUSD, avgTicketUSD, activeProperties, period } = params
+  const { leads, agents, dollarRate, currency, closureRate, closed, totalAmountUSD, avgTicketUSD, activeProperties, period, month, year } = params
   const fmt = (usd: number) => currency === 'USD'
     ? `USD ${usd.toLocaleString('es-AR', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}`
     : `ARS ${(usd * dollarRate).toLocaleString('es-AR', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}`
   const now = new Date().toLocaleDateString('es-AR', { day: '2-digit', month: 'long', year: 'numeric' })
 
+  // Filter leads by selected month/year for monthly reports
+  const reportLeads = (period === 'monthly' && month !== undefined && year !== undefined)
+    ? leads.filter(l => {
+        const d = new Date(l.created_at)
+        return d.getMonth() === month && d.getFullYear() === year
+      })
+    : leads
+  const reportClosed = (period === 'monthly' && month !== undefined && year !== undefined)
+    ? closed.filter(l => {
+        const d = new Date(l.created_at)
+        return d.getMonth() === month && d.getFullYear() === year
+      })
+    : closed
+  const periodLabel = period === 'monthly' && month !== undefined && year !== undefined
+    ? `${MONTH_NAMES_ES_FULL[month]} ${year}`
+    : year ? `Año ${year}` : 'Período actual'
+
+  const reportTotalUSD = reportLeads.reduce((s, l) => {
+    if (!l.amount) return s
+    return s + (l.currency === 'USD' ? l.amount : l.amount / dollarRate)
+  }, 0)
+  const reportAvgTicket = reportClosed.length > 0
+    ? reportClosed.reduce((s, l) => s + (l.currency === 'USD' ? (l.amount || 0) : (l.amount || 0) / dollarRate), 0) / reportClosed.length
+    : 0
+  const reportRate = reportLeads.length > 0 ? ((reportClosed.length / reportLeads.length) * 100).toFixed(1) : '0.0'
+
   const agentRows = agents.map((agent, i) => {
-    const agentLeads = leads.filter(l => l.agent_id === agent.id)
+    const agentLeads = reportLeads.filter(l => l.agent_id === agent.id)
     const agentClosed = agentLeads.filter(l => l.stage?.key === 'escritura')
     const closedUSD = agentClosed.reduce((s, l) => s + (l.currency === 'USD' ? (l.amount || 0) : (l.amount || 0) / dollarRate), 0)
     const rate = agentLeads.length > 0 ? ((agentClosed.length / agentLeads.length) * 100).toFixed(0) : '0'
@@ -175,7 +205,7 @@ function exportPDF(params: {
     return `<tr><td>${i + 1}</td><td><strong>${agent.name}</strong></td><td>${agent.role}</td><td>${agentLeads.length}</td><td>${agentClosed.length}</td><td>${rate}%</td><td style="color:#B3925A;font-weight:700">${fmt(commission)}</td></tr>`
   }).join('')
 
-  const html = `<!DOCTYPE html><html><head><meta charset="utf-8"><title>Aurum Realty · Resumen</title><style>
+  const html = `<!DOCTYPE html><html><head><meta charset="utf-8"><title>Aurum Realty · ${periodLabel}</title><style>
     *{box-sizing:border-box;margin:0;padding:0}
     body{font-family:system-ui,sans-serif;color:#241911;padding:40px;background:#fff;font-size:13px;line-height:1.5}
     .header{display:flex;justify-content:space-between;align-items:center;margin-bottom:32px;padding-bottom:20px;border-bottom:2px solid #B3925A}
@@ -195,18 +225,18 @@ function exportPDF(params: {
     @media print{body{padding:0}}
   </style></head><body>
     <div class="header">
-      <div><div class="logo">AURUM <span>REALTY</span></div><div class="subtitle">Resumen ${period === 'monthly' ? 'mensual' : 'anual'} · ${now}</div></div>
-      <div style="text-align:right;font-size:11px;color:#7A6A5B"><div>Leads activos: <strong>${leads.length}</strong></div><div>Propiedades: <strong>${activeProperties}</strong></div></div>
+      <div><div class="logo">AURUM <span>REALTY</span></div><div class="subtitle">Resumen ${period === 'monthly' ? 'mensual' : 'anual'} · ${periodLabel} · Exportado ${now}</div></div>
+      <div style="text-align:right;font-size:11px;color:#7A6A5B"><div>Leads período: <strong>${reportLeads.length}</strong></div><div>Propiedades activas: <strong>${activeProperties}</strong></div></div>
     </div>
     <div class="kpi-grid">
-      <div class="kpi"><div class="kpi-label">Pipeline Total</div><div class="kpi-value">${fmt(totalAmountUSD)}</div></div>
-      <div class="kpi"><div class="kpi-label">Cierres del período</div><div class="kpi-value" style="color:#1E4620">${closed.length}</div></div>
-      <div class="kpi"><div class="kpi-label">Tasa de cierre</div><div class="kpi-value">${closureRate}%</div></div>
-      <div class="kpi"><div class="kpi-label">Ticket promedio</div><div class="kpi-value" style="font-size:15px">${fmt(avgTicketUSD)}</div></div>
+      <div class="kpi"><div class="kpi-label">Pipeline del período</div><div class="kpi-value">${fmt(reportTotalUSD)}</div></div>
+      <div class="kpi"><div class="kpi-label">Cierres del período</div><div class="kpi-value" style="color:#1E4620">${reportClosed.length}</div></div>
+      <div class="kpi"><div class="kpi-label">Tasa de cierre</div><div class="kpi-value">${reportRate}%</div></div>
+      <div class="kpi"><div class="kpi-label">Ticket promedio</div><div class="kpi-value" style="font-size:15px">${fmt(reportAvgTicket)}</div></div>
       <div class="kpi"><div class="kpi-label">Propiedades activas</div><div class="kpi-value">${activeProperties}</div></div>
     </div>
     <div class="section">
-      <h2>Ranking del equipo</h2>
+      <h2>Ranking del equipo · ${periodLabel}</h2>
       <table><thead><tr><th>#</th><th>Agente</th><th>Rol</th><th>Leads asignados</th><th>Cierres</th><th>Tasa cierre</th><th>Comisión estimada</th></tr></thead>
       <tbody>${agentRows}</tbody></table>
     </div>
@@ -221,28 +251,67 @@ function exportPDF(params: {
 }
 
 // ── period selector modal ─────────────────────────────────────────────────────
-function PeriodModal({ onSelect, onClose }: { onSelect: (p: 'monthly' | 'annual') => void; onClose: () => void }) {
+const MONTH_NAMES_ES = ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre']
+
+function PeriodModal({ onSelect, onClose }: {
+  onSelect: (p: 'monthly' | 'annual', month?: number, year?: number) => void
+  onClose: () => void
+}) {
+  const now = new Date()
+  const [selectedMonth, setSelectedMonth] = useState(now.getMonth())
+  const [selectedYear, setSelectedYear] = useState(now.getFullYear())
+  const years = Array.from({ length: 3 }, (_, i) => now.getFullYear() - i)
+
   return (
     <>
       <div onClick={onClose} style={{ position: 'fixed', inset: 0, background: 'rgba(36,25,17,0.3)', backdropFilter: 'blur(2px)', zIndex: 80 }} />
       <div style={{
         position: 'fixed', top: '50%', left: '50%', transform: 'translate(-50%,-50%)',
-        width: 340, background: '#fff', borderRadius: 'var(--radius-lg)',
+        width: 380, background: '#fff', borderRadius: 'var(--radius-lg)',
         border: '1px solid var(--border)', boxShadow: '0 24px 80px rgba(36,25,17,.22)', zIndex: 90, overflow: 'hidden',
       }}>
         <div style={{ padding: '18px 22px 14px', borderBottom: '1px solid var(--border)' }}>
-          <div style={{ fontSize: 10.5, color: 'var(--ink-3)', letterSpacing: '0.12em', textTransform: 'uppercase', fontWeight: 600 }}>EXPORTAR</div>
+          <div style={{ fontSize: 10.5, color: 'var(--ink-3)', letterSpacing: '0.12em', textTransform: 'uppercase', fontWeight: 600 }}>EXPORTAR PDF</div>
           <h2 style={{ fontSize: 16, fontWeight: 700, fontFamily: 'var(--font-jakarta)', marginTop: 3 }}>Seleccionar período</h2>
         </div>
-        <div style={{ padding: '16px 22px 20px', display: 'flex', flexDirection: 'column', gap: 10 }}>
-          <button onClick={() => { onSelect('monthly'); onClose() }} style={{ padding: '14px 18px', borderRadius: 'var(--radius)', border: '1px solid var(--border)', background: 'var(--surface)', cursor: 'pointer', textAlign: 'left' }}>
-            <div style={{ fontWeight: 700, fontSize: 14 }}>Resumen mensual</div>
-            <div style={{ fontSize: 12, color: 'var(--ink-3)', marginTop: 3 }}>Pipeline, cierres y equipo del mes actual</div>
-          </button>
-          <button onClick={() => { onSelect('annual'); onClose() }} style={{ padding: '14px 18px', borderRadius: 'var(--radius)', border: '1px solid var(--border)', background: 'var(--surface)', cursor: 'pointer', textAlign: 'left' }}>
-            <div style={{ fontWeight: 700, fontSize: 14 }}>Resumen anual</div>
+        <div style={{ padding: '16px 22px 20px', display: 'flex', flexDirection: 'column', gap: 14 }}>
+          {/* Month/year picker */}
+          <div style={{ padding: '14px 18px', borderRadius: 'var(--radius)', border: '1px solid var(--border)', background: 'var(--surface)' }}>
+            <div style={{ fontWeight: 700, fontSize: 13, marginBottom: 12 }}>Resumen mensual</div>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: 12 }}>
+              <div>
+                <div style={{ fontSize: 11, fontWeight: 600, color: 'var(--ink-3)', marginBottom: 4 }}>Mes</div>
+                <select
+                  value={selectedMonth}
+                  onChange={e => setSelectedMonth(Number(e.target.value))}
+                  style={{ width: '100%', padding: '8px 10px', borderRadius: 8, border: '1px solid var(--border)', fontSize: 13, fontFamily: 'inherit', background: '#fff', color: 'var(--ink)', cursor: 'pointer' }}>
+                  {MONTH_NAMES_ES.map((m, i) => <option key={i} value={i}>{m}</option>)}
+                </select>
+              </div>
+              <div>
+                <div style={{ fontSize: 11, fontWeight: 600, color: 'var(--ink-3)', marginBottom: 4 }}>Año</div>
+                <select
+                  value={selectedYear}
+                  onChange={e => setSelectedYear(Number(e.target.value))}
+                  style={{ width: '100%', padding: '8px 10px', borderRadius: 8, border: '1px solid var(--border)', fontSize: 13, fontFamily: 'inherit', background: '#fff', color: 'var(--ink)', cursor: 'pointer' }}>
+                  {years.map(y => <option key={y} value={y}>{y}</option>)}
+                </select>
+              </div>
+            </div>
+            <button
+              onClick={() => { onSelect('monthly', selectedMonth, selectedYear); onClose() }}
+              style={{ width: '100%', padding: '10px', borderRadius: 'var(--radius)', border: 'none', background: 'var(--ink)', color: '#fff', fontSize: 13, fontWeight: 600, cursor: 'pointer' }}>
+              Exportar {MONTH_NAMES_ES[selectedMonth]} {selectedYear}
+            </button>
+          </div>
+
+          <button
+            onClick={() => { onSelect('annual', undefined, selectedYear); onClose() }}
+            style={{ padding: '14px 18px', borderRadius: 'var(--radius)', border: '1px solid var(--border)', background: 'var(--surface)', cursor: 'pointer', textAlign: 'left' }}>
+            <div style={{ fontWeight: 700, fontSize: 13 }}>Resumen anual {selectedYear}</div>
             <div style={{ fontSize: 12, color: 'var(--ink-3)', marginTop: 3 }}>Consolidado del año con ranking acumulado</div>
           </button>
+
           <button onClick={onClose} style={{ padding: '9px', borderRadius: 'var(--radius)', border: '1px solid var(--border)', background: '#fff', cursor: 'pointer', fontSize: 13, color: 'var(--ink-3)', fontWeight: 500 }}>Cancelar</button>
         </div>
       </div>
@@ -462,7 +531,7 @@ export default function ExecutiveDashboard({ leads, agents, dollarRate, activePr
       {showPeriodModal && (
         <PeriodModal
           onClose={() => setShowPeriodModal(false)}
-          onSelect={(period) => exportPDF({ leads, agents, dollarRate, currency, closureRate, closed, totalAmountUSD, avgTicketUSD, activeProperties, period })}
+          onSelect={(period, month, year) => exportPDF({ leads, agents, dollarRate, currency, closureRate, closed, totalAmountUSD, avgTicketUSD, activeProperties, period, month, year })}
         />
       )}
     </div>

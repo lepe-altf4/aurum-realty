@@ -331,58 +331,171 @@ const DEFAULT_INTEGRATIONS: Integration[] = [
   { key: 'instagram', name: 'Instagram', description: 'Capturá leads de formularios de Instagram Lead Ads', enabled: true, icon: 'IG' },
 ]
 
+function ArgenpropModal({ onClose }: { onClose: () => void }) {
+  return (
+    <>
+      <div onClick={onClose} style={{ position: 'fixed', inset: 0, background: 'rgba(36,25,17,0.4)', backdropFilter: 'blur(2px)', zIndex: 80 }} />
+      <div style={{ position: 'fixed', top: '50%', left: '50%', transform: 'translate(-50%,-50%)', width: 400, background: '#fff', borderRadius: 'var(--radius-lg)', border: '1px solid var(--border)', boxShadow: '0 24px 80px rgba(36,25,17,.22)', zIndex: 90, overflow: 'hidden' }}>
+        <div style={{ padding: '28px 28px 24px', textAlign: 'center' }}>
+          <div style={{ width: 56, height: 56, borderRadius: 16, background: 'var(--gold-soft)', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 16px', border: '1px solid #E2D4B5' }}>
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="var(--gold)" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round"><path d="M12 3l1.8 5.2L19 10l-5.2 1.8L12 17l-1.8-5.2L5 10l5.2-1.8z"/></svg>
+          </div>
+          <h2 style={{ fontSize: 18, fontWeight: 700, marginBottom: 8 }}>Próximamente</h2>
+          <p style={{ fontSize: 13, color: 'var(--ink-3)', lineHeight: 1.6, marginBottom: 20 }}>
+            La integración con <strong>Argenprop</strong> está en desarrollo y estará disponible muy pronto.
+            Podrás importar leads automáticamente desde tus publicaciones.
+          </p>
+          <div style={{ padding: '12px 16px', background: 'var(--gold-soft)', borderRadius: 'var(--radius)', border: '1px solid #E2D4B5', fontSize: 12, color: '#6E5630', marginBottom: 20 }}>
+            ✦ Estamos trabajando en esta integración con el equipo de Argenprop. Te notificaremos cuando esté lista.
+          </div>
+          <button onClick={onClose} style={{ width: '100%', padding: '11px', borderRadius: 'var(--radius)', border: 'none', background: 'var(--ink)', color: '#fff', fontSize: 13, fontWeight: 600, cursor: 'pointer' }}>
+            Entendido
+          </button>
+        </div>
+      </div>
+    </>
+  )
+}
+
+function InstagramModal({ onClose }: { onClose: () => void }) {
+  const webhookUrl = typeof window !== 'undefined'
+    ? `${window.location.origin}/api/webhooks/instagram`
+    : 'https://your-domain.com/api/webhooks/instagram'
+  const [copied, setCopied] = useState(false)
+
+  function copyUrl() {
+    navigator.clipboard.writeText(webhookUrl).then(() => {
+      setCopied(true)
+      setTimeout(() => setCopied(false), 2000)
+    })
+  }
+
+  return (
+    <>
+      <div onClick={onClose} style={{ position: 'fixed', inset: 0, background: 'rgba(36,25,17,0.4)', backdropFilter: 'blur(2px)', zIndex: 80 }} />
+      <div style={{ position: 'fixed', top: '50%', left: '50%', transform: 'translate(-50%,-50%)', width: 500, background: '#fff', borderRadius: 'var(--radius-lg)', border: '1px solid var(--border)', boxShadow: '0 24px 80px rgba(36,25,17,.22)', zIndex: 90, overflow: 'hidden' }}>
+        <div style={{ padding: '18px 22px 14px', borderBottom: '1px solid var(--border)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <div>
+            <div style={{ fontSize: 10.5, color: 'var(--ink-3)', textTransform: 'uppercase', letterSpacing: '0.12em', fontWeight: 600 }}>INTEGRACIÓN</div>
+            <div style={{ fontWeight: 700, fontSize: 16, marginTop: 2 }}>Configurar Instagram Lead Ads</div>
+          </div>
+          <button onClick={onClose} style={{ width: 30, height: 30, display: 'grid', placeItems: 'center', border: '1px solid var(--border)', borderRadius: 'var(--radius-sm)', background: '#fff', cursor: 'pointer' }}>
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round"><path d="M6 6l12 12M18 6 6 18" /></svg>
+          </button>
+        </div>
+        <div style={{ padding: '20px 22px 22px', display: 'flex', flexDirection: 'column', gap: 16 }}>
+          <p style={{ fontSize: 13, color: 'var(--ink-2)', lineHeight: 1.6 }}>
+            Para capturar leads de tus formularios de Instagram Lead Ads, configurá el webhook en el panel de Meta for Business:
+          </p>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+            {[
+              { num: 1, text: 'Accedé a Meta Business Suite → Configuración → Páginas → Webhooks' },
+              { num: 2, text: 'Hacé clic en "Agregar webhook" y seleccioná el evento "leadgen"' },
+              { num: 3, text: 'Pegá la URL del webhook (abajo) y el token de verificación: aurum-crm-2025' },
+              { num: 4, text: 'Verificá y activá el webhook. Los nuevos leads llegarán automáticamente.' },
+            ].map(step => (
+              <div key={step.num} style={{ display: 'flex', gap: 12, alignItems: 'flex-start' }}>
+                <div style={{ width: 24, height: 24, borderRadius: '50%', background: 'var(--ink)', color: '#fff', display: 'grid', placeItems: 'center', fontSize: 11, fontWeight: 700, flexShrink: 0 }}>{step.num}</div>
+                <div style={{ fontSize: 13, color: 'var(--ink-2)', lineHeight: 1.5, paddingTop: 2 }}>{step.text}</div>
+              </div>
+            ))}
+          </div>
+          <div>
+            <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--ink-2)', marginBottom: 6 }}>URL del Webhook</div>
+            <div style={{ display: 'flex', gap: 8 }}>
+              <div style={{ flex: 1, padding: '9px 12px', borderRadius: 8, border: '1px solid var(--border)', background: 'var(--surface)', fontSize: 12, fontFamily: 'var(--font-mono)', color: 'var(--ink-2)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                {webhookUrl}
+              </div>
+              <button onClick={copyUrl} style={{ padding: '9px 14px', borderRadius: 8, border: '1px solid var(--border)', background: copied ? 'var(--success)' : '#fff', color: copied ? '#fff' : 'var(--ink)', fontSize: 12, fontWeight: 600, cursor: 'pointer', flexShrink: 0, transition: 'background .2s' }}>
+                {copied ? '✓ Copiado' : 'Copiar'}
+              </button>
+            </div>
+          </div>
+          <button onClick={onClose} style={{ padding: '11px', borderRadius: 'var(--radius)', border: 'none', background: 'var(--ink)', color: '#fff', fontSize: 13, fontWeight: 600, cursor: 'pointer' }}>
+            Listo, entendido
+          </button>
+        </div>
+      </div>
+    </>
+  )
+}
+
 function IntegrationsTab() {
   const [integrations, setIntegrations] = useState<Integration[]>(DEFAULT_INTEGRATIONS)
+  const [showArgenprop, setShowArgenprop] = useState(false)
+  const [showInstagram, setShowInstagram] = useState(false)
 
   function toggle(key: string) {
+    if (key === 'argenprop') {
+      setShowArgenprop(true)
+      return
+    }
+    if (key === 'instagram') {
+      const int = integrations.find(i => i.key === 'instagram')
+      if (!int?.enabled) {
+        setShowInstagram(true)
+      }
+      setIntegrations(l => l.map(i => i.key === key ? { ...i, enabled: !i.enabled } : i))
+      return
+    }
     setIntegrations(l => l.map(i => i.key === key ? { ...i, enabled: !i.enabled } : i))
   }
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 12, maxWidth: 560 }}>
-      {integrations.map(int => (
-        <div key={int.key} style={{
-          display: 'flex', alignItems: 'center', gap: 16,
-          padding: '16px 20px', background: '#fff',
-          border: '1px solid var(--border)', borderRadius: 12,
-        }}>
-          {/* icon placeholder */}
-          <div style={{
-            width: 44, height: 44, borderRadius: 10, background: 'var(--surface-2)',
-            display: 'flex', alignItems: 'center', justifyContent: 'center',
-            fontSize: 11, fontWeight: 700, color: 'var(--ink-3)', flexShrink: 0,
+    <>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 12, maxWidth: 560 }}>
+        {integrations.map(int => (
+          <div key={int.key} style={{
+            display: 'flex', alignItems: 'center', gap: 16,
+            padding: '16px 20px', background: '#fff',
+            border: '1px solid var(--border)', borderRadius: 12,
           }}>
-            {int.icon}
+            {/* icon placeholder */}
+            <div style={{
+              width: 44, height: 44, borderRadius: 10, background: 'var(--surface-2)',
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              fontSize: 11, fontWeight: 700, color: 'var(--ink-3)', flexShrink: 0,
+            }}>
+              {int.icon}
+            </div>
+            <div style={{ flex: 1 }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                <div style={{ fontSize: 13, fontWeight: 700 }}>{int.name}</div>
+                {int.key === 'argenprop' && (
+                  <span style={{ fontSize: 9, fontWeight: 700, padding: '2px 6px', borderRadius: 999, background: 'var(--gold-soft)', color: '#6E5630', border: '1px solid #E2D4B5', letterSpacing: '0.06em' }}>PRÓXIMAMENTE</span>
+                )}
+              </div>
+              <div style={{ fontSize: 12, color: 'var(--ink-3)', marginTop: 2 }}>{int.description}</div>
+            </div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+              <Tag variant={int.enabled ? 'success' : 'default'} dot>
+                {int.enabled ? 'Activo' : 'Inactivo'}
+              </Tag>
+              {/* Toggle switch */}
+              <button
+                onClick={() => toggle(int.key)}
+                style={{
+                  width: 44, height: 24, borderRadius: 12, border: 0, cursor: 'pointer',
+                  background: int.enabled ? 'var(--success)' : 'var(--border-strong)',
+                  position: 'relative', transition: 'background 0.25s', flexShrink: 0,
+                  padding: 0,
+                }}
+              >
+                <span style={{
+                  position: 'absolute', top: 2, left: int.enabled ? 22 : 2,
+                  width: 20, height: 20, borderRadius: '50%', background: '#fff',
+                  transition: 'left 0.25s',
+                  boxShadow: '0 1px 3px rgba(0,0,0,0.2)',
+                }} />
+              </button>
+            </div>
           </div>
-          <div style={{ flex: 1 }}>
-            <div style={{ fontSize: 13, fontWeight: 700 }}>{int.name}</div>
-            <div style={{ fontSize: 12, color: 'var(--ink-3)', marginTop: 2 }}>{int.description}</div>
-          </div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-            <Tag variant={int.enabled ? 'success' : 'default'} dot>
-              {int.enabled ? 'Activo' : 'Inactivo'}
-            </Tag>
-            {/* Toggle switch */}
-            <button
-              onClick={() => toggle(int.key)}
-              style={{
-                width: 44, height: 24, borderRadius: 12, border: 0, cursor: 'pointer',
-                background: int.enabled ? 'var(--success)' : 'var(--border-strong)',
-                position: 'relative', transition: 'background 0.25s', flexShrink: 0,
-                padding: 0,
-              }}
-            >
-              <span style={{
-                position: 'absolute', top: 2, left: int.enabled ? 22 : 2,
-                width: 20, height: 20, borderRadius: '50%', background: '#fff',
-                transition: 'left 0.25s',
-                boxShadow: '0 1px 3px rgba(0,0,0,0.2)',
-              }} />
-            </button>
-          </div>
-        </div>
-      ))}
-    </div>
+        ))}
+      </div>
+
+      {showArgenprop && <ArgenpropModal onClose={() => setShowArgenprop(false)} />}
+      {showInstagram && <InstagramModal onClose={() => setShowInstagram(false)} />}
+    </>
   )
 }
 

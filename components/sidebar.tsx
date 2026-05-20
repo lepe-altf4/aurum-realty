@@ -97,9 +97,9 @@ export default function Sidebar({ agent }: { agent: Agent | null }) {
       <div style={{ fontSize: 10.5, letterSpacing: '0.16em', textTransform: 'uppercase', color: 'var(--ink-4)', fontWeight: 600, padding: '14px 8px 6px' }}>Saved Views</div>
       <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
         {[
-          { label: 'Leads premium', icon: 'sparkle', href: '/leads?hot=true' },
-          { label: 'Atrasados +5 días', icon: 'bell', href: '/leads?overdue=true' },
-          { label: 'Palermo & Recoleta', icon: 'pin', href: '/leads' },
+          { label: 'Leads premium', icon: 'sparkle', href: '/leads?view=premium' },
+          { label: 'Atrasados +5 días', icon: 'bell', href: '/leads?view=atrasados' },
+          { label: 'Palermo & Recoleta', icon: 'pin', href: '/leads?view=palermo' },
         ].map(v => (
           <a key={v.label} href={v.href} style={{
             display: 'flex', alignItems: 'center', gap: 11, padding: '9px 10px',

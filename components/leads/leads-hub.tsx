@@ -138,6 +138,15 @@ export default function LeadsHub({ initialLeads, stages, agents }: {
   const [zoneProperties, setZoneProperties] = useState<Property[]>([])
   const [loadingZone, setLoadingZone] = useState(false)
 
+  // Read URL param to activate a saved view on navigation from sidebar
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search)
+    const view = params.get('view')
+    if (view === 'premium') setSavedView('premium')
+    else if (view === 'atrasados') setSavedView('atrasados')
+    else if (view === 'palermo') setSavedView('palermo')
+  }, [])
+
   useEffect(() => {
     if (savedView !== 'palermo') { setZoneProperties([]); return }
     setLoadingZone(true)

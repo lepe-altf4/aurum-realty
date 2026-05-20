@@ -42,6 +42,7 @@ export default function PipelineView({ initialLeads, stages, agents }: {
 }) {
   const [leads, setLeads] = useState<Lead[]>(initialLeads)
   const [op, setOp] = useState<OpFilter>('Todas')
+  const [search, setSearch] = useState('')
   const [activeId, setActiveId] = useState<string | null>(null)
   const [showNewLead, setShowNewLead] = useState(false)
   const [defaultStageId, setDefaultStageId] = useState<string | undefined>(undefined)
@@ -50,8 +51,11 @@ export default function PipelineView({ initialLeads, stages, agents }: {
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 8 } }))
 
   const filtered = useMemo(() =>
-    leads.filter(l => op === 'Todas' || l.operation === op),
-    [leads, op]
+    leads.filter(l =>
+      (op === 'Todas' || l.operation === op) &&
+      (search.trim() === '' || l.name.toLowerCase().includes(search.toLowerCase()))
+    ),
+    [leads, op, search]
   )
 
   const activeLead = useMemo(() => leads.find(l => l.id === activeId), [leads, activeId])
@@ -119,6 +123,20 @@ export default function PipelineView({ initialLeads, stages, agents }: {
         {/* Switch row */}
         <div style={{ display: 'flex', alignItems: 'center', gap: 14, marginBottom: 18, flexWrap: 'wrap' }}>
           <OpSwitch value={op} onChange={setOp} />
+          <div style={{ position: 'relative', display: 'flex', alignItems: 'center' }}>
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" style={{ position: 'absolute', left: 10, color: 'var(--ink-3)', pointerEvents: 'none' }}><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
+            <input
+              value={search}
+              onChange={e => setSearch(e.target.value)}
+              placeholder="Buscar lead..."
+              style={{ paddingLeft: 32, paddingRight: 12, paddingTop: 8, paddingBottom: 8, borderRadius: 'var(--radius)', border: '1px solid var(--border)', background: '#fff', fontSize: 13, fontFamily: 'inherit', color: 'var(--ink)', outline: 'none', width: 180 }}
+            />
+            {search && (
+              <button onClick={() => setSearch('')} style={{ position: 'absolute', right: 8, background: 'none', border: 'none', cursor: 'pointer', color: 'var(--ink-3)', padding: 0, display: 'grid', placeItems: 'center' }}>
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M6 6l12 12M18 6 6 18"/></svg>
+              </button>
+            )}
+          </div>
           <span style={{ fontSize: 12, color: 'var(--ink-3)' }}>
             Mostrando <strong style={{ color: 'var(--ink)' }}>{filtered.length}</strong> operaciones · cada propiedad en su moneda asignada
           </span>
