@@ -313,7 +313,7 @@ export default function SalesPanel({ leads, stages, agents }: {
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
-      <Topbar title="Panel de Ventas" crumb="CRM" right={tabBar} />
+      <Topbar title="Panel de Ventas" crumb="CRM" search={false} right={tabBar} />
 
       <div style={{ padding: 24, display: 'flex', flexDirection: 'column', gap: 20, overflowY: 'auto', flex: 1 }}>
 

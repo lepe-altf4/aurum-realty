@@ -68,16 +68,32 @@ export default function PipelineView({ initialLeads, stages, agents }: {
     setActiveId(null)
     const { active, over } = e
     if (!over) return
+
     const leadId = active.id as string
-    const targetStageId = over.id as string
     const lead = leads.find(l => l.id === leadId)
-    if (!lead || lead.stage_id === targetStageId) return
+    if (!lead) return
+
+    // over.id can be EITHER a stage.id (dropped on column background)
+    // OR another lead's id (dropped on top of a card) — handle both
+    const overId = over.id as string
+    let targetStageId: string
+    if (stages.some(s => s.id === overId)) {
+      targetStageId = overId
+    } else {
+      const overLead = leads.find(l => l.id === overId)
+      if (!overLead?.stage_id) return
+      targetStageId = overLead.stage_id
+    }
+
+    if (lead.stage_id === targetStageId) return
     const newStage = stages.find(s => s.id === targetStageId)
     if (!newStage) return
 
+    // Optimistic update
     setLeads(prev => prev.map(l =>
       l.id === leadId ? { ...l, stage_id: targetStageId, stage: newStage } : l
     ))
+    // Persist
     await supabase.from('leads').update({ stage_id: targetStageId }).eq('id', leadId)
     const { data: { user } } = await supabase.auth.getUser()
     const { data: agent } = user ? await supabase.from('agents').select('id').eq('auth_user_id', user.id).single() : { data: null }
@@ -105,6 +121,7 @@ export default function PipelineView({ initialLeads, stages, agents }: {
       <Topbar
         crumb="WORKSPACE · PIPELINE"
         title="Pipeline de Operaciones"
+        search={false}
         right={
           <div style={{ display: 'flex', gap: 8 }}>
             <button style={{ display: 'inline-flex', alignItems: 'center', gap: 8, padding: '9px 14px', borderRadius: 'var(--radius)', fontWeight: 600, fontSize: 13, border: '1px solid var(--border)', background: '#fff', color: 'var(--ink)', cursor: 'pointer' }}>

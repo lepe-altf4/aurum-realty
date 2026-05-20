@@ -1,5 +1,5 @@
 'use client'
-import { useState } from 'react'
+import { useState, useRef } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import type { Property } from '@/lib/types'
 
@@ -21,8 +21,43 @@ export default function NewPropertyModal({ onClose, onCreated }: {
   const [status, setStatus] = useState<Property['status']>('Disponible')
   const [premium, setPremium] = useState(false)
   const [description, setDescription] = useState('')
+  const [imageFile, setImageFile] = useState<File | null>(null)
+  const [imagePreview, setImagePreview] = useState<string | null>(null)
+  const [uploadingImage, setUploadingImage] = useState(false)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
+  const fileInputRef = useRef<HTMLInputElement>(null)
+
+  function handleImageSelect(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0]
+    if (!file) return
+    if (!file.type.startsWith('image/')) { setError('El archivo debe ser una imagen (JPG, PNG, WEBP)'); return }
+    if (file.size > 5 * 1024 * 1024) { setError('La imagen no puede superar los 5 MB'); return }
+    setImageFile(file)
+    setError('')
+    const reader = new FileReader()
+    reader.onloadend = () => setImagePreview(reader.result as string)
+    reader.readAsDataURL(file)
+  }
+
+  async function uploadImage(propertyId: string): Promise<string | null> {
+    if (!imageFile) return null
+    setUploadingImage(true)
+    const supabase = createClient()
+    const ext = imageFile.name.split('.').pop()?.toLowerCase() || 'jpg'
+    const path = `${propertyId}.${ext}`
+    const { error: uploadErr } = await supabase.storage
+      .from('property-images')
+      .upload(path, imageFile, { upsert: true, contentType: imageFile.type })
+    if (uploadErr) {
+      setError(`Error al subir imagen: ${uploadErr.message}`)
+      setUploadingImage(false)
+      return null
+    }
+    const { data: urlData } = supabase.storage.from('property-images').getPublicUrl(path)
+    setUploadingImage(false)
+    return urlData.publicUrl
+  }
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
@@ -30,6 +65,8 @@ export default function NewPropertyModal({ onClose, onCreated }: {
     setLoading(true)
     setError('')
     const supabase = createClient()
+
+    // First insert the property (photo_url set after upload)
     const { data, error: err } = await supabase
       .from('properties')
       .insert({
@@ -51,7 +88,18 @@ export default function NewPropertyModal({ onClose, onCreated }: {
       .single()
 
     if (err) { setError(err.message); setLoading(false); return }
-    if (data) onCreated(data as Property)
+    if (!data) { setLoading(false); return }
+
+    // Upload image if one was selected
+    let finalPhotoUrl: string | null = null
+    if (imageFile) {
+      finalPhotoUrl = await uploadImage(data.id)
+      if (finalPhotoUrl) {
+        await supabase.from('properties').update({ photo_url: finalPhotoUrl }).eq('id', data.id)
+      }
+    }
+
+    onCreated({ ...(data as Property), photo_url: finalPhotoUrl })
     onClose()
   }
 
@@ -170,6 +218,41 @@ export default function NewPropertyModal({ onClose, onCreated }: {
               <textarea rows={3} value={description} onChange={e => setDescription(e.target.value)} placeholder="Detalles adicionales de la propiedad..." style={{ ...inp, resize: 'none', lineHeight: 1.5 }} />
             </div>
 
+            {/* Image upload */}
+            <div>
+              <label style={lbl}>Foto principal</label>
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept="image/*"
+                onChange={handleImageSelect}
+                style={{ display: 'none' }}
+              />
+              {imagePreview ? (
+                <div style={{ position: 'relative', borderRadius: 'var(--radius)', overflow: 'hidden', border: '1px solid var(--border)', height: 160 }}>
+                  <img src={imagePreview} alt="Preview" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                  <button
+                    type="button"
+                    onClick={() => { setImageFile(null); setImagePreview(null); if (fileInputRef.current) fileInputRef.current.value = '' }}
+                    style={{ position: 'absolute', top: 8, right: 8, width: 28, height: 28, borderRadius: '50%', background: 'rgba(36,25,17,.7)', border: 'none', color: '#fff', cursor: 'pointer', display: 'grid', placeItems: 'center' }}>
+                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M6 6l12 12M18 6 6 18"/></svg>
+                  </button>
+                  <div style={{ position: 'absolute', bottom: 8, left: 8, background: 'rgba(36,25,17,.65)', color: '#fff', fontSize: 10, padding: '3px 8px', borderRadius: 999, fontWeight: 600 }}>
+                    {imageFile?.name}
+                  </div>
+                </div>
+              ) : (
+                <button
+                  type="button"
+                  onClick={() => fileInputRef.current?.click()}
+                  style={{ width: '100%', padding: '24px', borderRadius: 'var(--radius)', border: '2px dashed var(--border)', background: 'var(--surface)', cursor: 'pointer', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 8 }}>
+                  <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="var(--ink-3)" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="m21 15-5-5L5 21"/></svg>
+                  <div style={{ fontSize: 13, color: 'var(--ink-3)', fontWeight: 500 }}>Hacé clic para subir imagen</div>
+                  <div style={{ fontSize: 11, color: 'var(--ink-4)' }}>JPG, PNG, WEBP — máx. 5 MB</div>
+                </button>
+              )}
+            </div>
+
             <label style={{ display: 'flex', alignItems: 'center', gap: 10, cursor: 'pointer', padding: '12px 14px', borderRadius: 'var(--radius)', border: `1px solid ${premium ? 'var(--gold)' : 'var(--border)'}`, background: premium ? 'var(--gold-soft)' : '#fff' }}>
               <input type="checkbox" checked={premium} onChange={e => setPremium(e.target.checked)} style={{ width: 16, height: 16, accentColor: 'var(--gold)', flexShrink: 0 }} />
               <div>
@@ -189,14 +272,14 @@ export default function NewPropertyModal({ onClose, onCreated }: {
             <button type="button" onClick={onClose} style={{ padding: '9px 18px', borderRadius: 'var(--radius)', border: '1px solid var(--border)', background: '#fff', color: 'var(--ink)', fontSize: 13, fontWeight: 600, cursor: 'pointer' }}>
               Cancelar
             </button>
-            <button type="submit" disabled={loading || !address.trim()} style={{
+            <button type="submit" disabled={loading || uploadingImage || !address.trim()} style={{
               display: 'inline-flex', alignItems: 'center', gap: 8,
               padding: '9px 20px', borderRadius: 'var(--radius)', border: 'none',
               background: 'var(--accent)', color: '#fff', fontSize: 13, fontWeight: 600,
-              cursor: loading || !address.trim() ? 'not-allowed' : 'pointer',
-              opacity: loading || !address.trim() ? 0.65 : 1,
+              cursor: loading || uploadingImage || !address.trim() ? 'not-allowed' : 'pointer',
+              opacity: loading || uploadingImage || !address.trim() ? 0.65 : 1,
             }}>
-              {loading ? 'Guardando...' : (
+              {uploadingImage ? 'Subiendo imagen…' : loading ? 'Guardando…' : (
                 <>
                   <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round"><path d="M12 5v14M5 12h14"/></svg>
                   Agregar propiedad

@@ -370,40 +370,51 @@ ${lead.property ? `
 
           {/* Stage tracker */}
           <div style={{ fontSize: 11, fontWeight: 600, letterSpacing: '0.14em', textTransform: 'uppercase', color: 'var(--ink-3)', margin: '22px 0 10px' }}>Etapa actual</div>
-          <div style={{ border: '1px solid var(--border)', borderRadius: 'var(--radius)', padding: 14, position: 'relative' }}>
+          <div style={{ border: '1px solid var(--border)', borderRadius: 'var(--radius)', padding: 14 }}>
             <div style={{ display: 'flex', gap: 6, marginBottom: 12 }}>
               {stages.map((s, i) => (
-                <div key={s.id} style={{ flex: 1, height: 5, borderRadius: 3, background: i <= stageIdx ? 'var(--ink)' : 'var(--border)' }} />
+                <div key={s.id} title={s.name} style={{ flex: 1, height: 5, borderRadius: 3, background: i <= stageIdx ? 'var(--ink)' : 'var(--border)', cursor: 'pointer', transition: 'background .15s' }}
+                  onClick={() => moveToStage(s)} />
               ))}
             </div>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-              <div style={{ fontSize: 12, color: 'var(--ink-3)' }}>{lead.stage?.name || '—'}</div>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: showStageMenu ? 12 : 0 }}>
+              <div style={{ fontSize: 12, color: 'var(--ink-3)' }}>
+                {lead.stage?.name || '—'}
+                {stageIdx < stages.length - 1 && !showStageMenu && (
+                  <span style={{ marginLeft: 6, fontSize: 11, color: 'var(--ink-4)' }}>→ {stages[stageIdx + 1]?.name}</span>
+                )}
+              </div>
               <button
                 onClick={() => setShowStageMenu(s => !s)}
-                style={{ display: 'inline-flex', alignItems: 'center', gap: 8, padding: '7px 12px', borderRadius: 'var(--radius-sm)', fontSize: 13, fontWeight: 600, border: '1px solid var(--border)', background: '#fff', color: 'var(--ink)', cursor: 'pointer' }}>
-                Mover etapa
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round"><path d="M5 12h14M13 6l6 6-6 6" /></svg>
+                style={{ display: 'inline-flex', alignItems: 'center', gap: 6, padding: '6px 11px', borderRadius: 'var(--radius-sm)', fontSize: 12, fontWeight: 600, border: '1px solid var(--border)', background: showStageMenu ? 'var(--ink)' : '#fff', color: showStageMenu ? '#fff' : 'var(--ink)', cursor: 'pointer', transition: 'all .12s' }}>
+                {showStageMenu ? 'Cancelar' : 'Mover etapa'}
+                {!showStageMenu && <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round"><path d="M5 12h14M13 6l6 6-6 6" /></svg>}
               </button>
             </div>
+            {/* Inline stage picker — no absolute positioning, no overflow clipping */}
             {showStageMenu && (
-              <>
-                <div onClick={() => setShowStageMenu(false)} style={{ position: 'fixed', inset: 0, zIndex: 5 }} />
-                <div style={{ position: 'absolute', right: 14, top: 'calc(100% + 4px)', background: '#fff', border: '1px solid var(--border)', borderRadius: 'var(--radius)', boxShadow: '0 8px 24px rgba(36,25,17,.12)', zIndex: 10, minWidth: 220, overflow: 'hidden' }}>
-                  {stages.map(s => (
-                    <div
-                      key={s.id}
-                      onClick={() => moveToStage(s)}
-                      style={{ padding: '10px 14px', cursor: s.id === lead.stage_id ? 'default' : 'pointer', fontSize: 13, fontWeight: s.id === lead.stage_id ? 700 : 500, color: s.id === lead.stage_id ? 'var(--gold)' : 'var(--ink)', background: '#fff', display: 'flex', alignItems: 'center', gap: 8, borderBottom: '1px solid var(--border)' }}
-                      onMouseEnter={e => { if (s.id !== lead.stage_id) (e.currentTarget as HTMLDivElement).style.background = 'var(--surface)' }}
-                      onMouseLeave={e => (e.currentTarget as HTMLDivElement).style.background = '#fff'}>
-                      {s.id === lead.stage_id && (
-                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="m4 12 5 5L20 7" /></svg>
-                      )}
-                      {s.name}
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
+                {stages.map((s, i) => (
+                  <button
+                    key={s.id}
+                    onClick={() => moveToStage(s)}
+                    style={{
+                      display: 'flex', alignItems: 'center', gap: 10,
+                      padding: '9px 12px', borderRadius: 'var(--radius-sm)',
+                      border: `1px solid ${s.id === lead.stage_id ? 'var(--gold)' : 'var(--border)'}`,
+                      background: s.id === lead.stage_id ? 'var(--gold-soft)' : '#fff',
+                      color: s.id === lead.stage_id ? '#6E5630' : 'var(--ink)',
+                      fontSize: 13, fontWeight: s.id === lead.stage_id ? 700 : 500,
+                      cursor: s.id === lead.stage_id ? 'default' : 'pointer',
+                      textAlign: 'left', transition: 'all .1s',
+                    }}>
+                    <div style={{ width: 18, height: 18, borderRadius: '50%', background: i <= stageIdx ? 'var(--ink)' : 'var(--border)', flexShrink: 0, display: 'grid', placeItems: 'center' }}>
+                      {s.id === lead.stage_id && <svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><path d="m4 12 5 5L20 7" /></svg>}
                     </div>
-                  ))}
-                </div>
-              </>
+                    {s.name}
+                  </button>
+                ))}
+              </div>
             )}
           </div>
 

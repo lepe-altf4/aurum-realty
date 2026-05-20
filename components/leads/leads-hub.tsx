@@ -231,6 +231,7 @@ export default function LeadsHub({ initialLeads, stages, agents }: {
       <Topbar
         crumb="WORKSPACE · LEADS"
         title="Leads Hub"
+        search={false}
         right={
           <div style={{ display: 'flex', gap: 8 }}>
             <button onClick={() => exportCSV(filtered)} style={{ display: 'inline-flex', alignItems: 'center', gap: 8, padding: '9px 14px', borderRadius: 'var(--radius)', fontWeight: 600, fontSize: 13, border: '1px solid var(--border)', background: '#fff', color: 'var(--ink)', cursor: 'pointer' }}>

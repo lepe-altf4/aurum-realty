@@ -412,7 +412,7 @@ export default function ExecutiveDashboard({ leads, agents, dollarRate, activePr
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
-      <Topbar title="Dashboard Ejecutivo" crumb="CRM" right={rightControls} />
+      <Topbar title="Dashboard Ejecutivo" crumb="CRM" search={false} right={rightControls} />
 
       <div style={{ padding: 24, display: 'flex', flexDirection: 'column', gap: 20, overflowY: 'auto', flex: 1 }}>
 
