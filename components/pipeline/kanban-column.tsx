@@ -21,11 +21,12 @@ function ColumnTotals({ leads }: { leads: Lead[] }) {
   )
 }
 
-export default function KanbanColumn({ stage, leads, stageIndex, totalStages }: {
+export default function KanbanColumn({ stage, leads, stageIndex, totalStages, onAddLead }: {
   stage: PipelineStage
   leads: Lead[]
   stageIndex: number
   totalStages: number
+  onAddLead?: (stageId: string) => void
 }) {
   const { setNodeRef, isOver } = useDroppable({ id: stage.id })
   const dotColor = stageIndex === totalStages - 1 ? 'var(--success)' : stageIndex === totalStages - 2 ? 'var(--gold)' : 'var(--ink)'
@@ -73,7 +74,18 @@ export default function KanbanColumn({ stage, leads, stageIndex, totalStages }: 
         <div style={{ fontSize: 12, color: 'var(--ink-4)', textAlign: 'center', padding: '24px 8px' }}>Vacío</div>
       )}
 
-      <button style={{ marginTop: 'auto', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, padding: '8px', borderRadius: 'var(--radius-sm)', background: 'var(--surface-2)', border: '1px solid var(--border)', color: 'var(--ink-3)', fontSize: 12, fontWeight: 500, cursor: 'pointer' }}>
+      <button
+        onClick={() => onAddLead?.(stage.id)}
+        style={{
+          marginTop: 'auto', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6,
+          padding: '8px', borderRadius: 'var(--radius-sm)',
+          background: 'var(--surface-2)', border: '1px solid var(--border)',
+          color: 'var(--ink-3)', fontSize: 12, fontWeight: 500, cursor: 'pointer',
+          transition: 'background .1s, color .1s',
+        }}
+        onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.background = 'var(--gold-soft)'; (e.currentTarget as HTMLButtonElement).style.color = '#6E5630' }}
+        onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.background = 'var(--surface-2)'; (e.currentTarget as HTMLButtonElement).style.color = 'var(--ink-3)' }}
+      >
         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round"><path d="M12 5v14M5 12h14"/></svg>
         Agregar lead
       </button>

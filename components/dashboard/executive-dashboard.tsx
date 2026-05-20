@@ -1,5 +1,5 @@
 'use client'
-import { useState, useMemo, useEffect, useRef } from 'react'
+import { useState, useMemo, useEffect } from 'react'
 import Topbar from '@/components/ui/topbar'
 import { compactNum, fmtUSD, fmtARS } from '@/lib/format'
 import type { Lead, Agent } from '@/lib/types'
@@ -147,6 +147,109 @@ function BarChart({ data, labels, currency, dollarRate }: { data: number[]; labe
   )
 }
 
+// ── PDF export ────────────────────────────────────────────────────────────────
+function exportPDF(params: {
+  leads: Lead[]
+  agents: Agent[]
+  dollarRate: number
+  currency: 'USD' | 'ARS'
+  closureRate: string
+  closed: Lead[]
+  totalAmountUSD: number
+  avgTicketUSD: number
+  activeProperties: number
+  period: 'monthly' | 'annual'
+}) {
+  const { leads, agents, dollarRate, currency, closureRate, closed, totalAmountUSD, avgTicketUSD, activeProperties, period } = params
+  const fmt = (usd: number) => currency === 'USD'
+    ? `USD ${usd.toLocaleString('es-AR', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}`
+    : `ARS ${(usd * dollarRate).toLocaleString('es-AR', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}`
+  const now = new Date().toLocaleDateString('es-AR', { day: '2-digit', month: 'long', year: 'numeric' })
+
+  const agentRows = agents.map((agent, i) => {
+    const agentLeads = leads.filter(l => l.agent_id === agent.id)
+    const agentClosed = agentLeads.filter(l => l.stage?.key === 'escritura')
+    const closedUSD = agentClosed.reduce((s, l) => s + (l.currency === 'USD' ? (l.amount || 0) : (l.amount || 0) / dollarRate), 0)
+    const rate = agentLeads.length > 0 ? ((agentClosed.length / agentLeads.length) * 100).toFixed(0) : '0'
+    const commission = closedUSD * (agent.commission_pct / 100)
+    return `<tr><td>${i + 1}</td><td><strong>${agent.name}</strong></td><td>${agent.role}</td><td>${agentLeads.length}</td><td>${agentClosed.length}</td><td>${rate}%</td><td style="color:#B3925A;font-weight:700">${fmt(commission)}</td></tr>`
+  }).join('')
+
+  const html = `<!DOCTYPE html><html><head><meta charset="utf-8"><title>Aurum Realty · Resumen</title><style>
+    *{box-sizing:border-box;margin:0;padding:0}
+    body{font-family:system-ui,sans-serif;color:#241911;padding:40px;background:#fff;font-size:13px;line-height:1.5}
+    .header{display:flex;justify-content:space-between;align-items:center;margin-bottom:32px;padding-bottom:20px;border-bottom:2px solid #B3925A}
+    .logo{font-size:22px;font-weight:800;letter-spacing:-0.02em}.logo span{color:#B3925A}
+    .subtitle{font-size:12px;color:#7A6A5B;margin-top:4px}
+    .kpi-grid{display:grid;grid-template-columns:repeat(5,1fr);gap:12px;margin-bottom:28px}
+    .kpi{background:#F8F6F2;border:1px solid #EAE5DC;border-radius:10px;padding:16px}
+    .kpi-label{font-size:9px;text-transform:uppercase;letter-spacing:.12em;color:#7A6A5B;font-weight:600}
+    .kpi-value{font-size:20px;font-weight:700;margin-top:6px;color:#241911}
+    h2{font-size:11px;font-weight:700;margin-bottom:12px;color:#241911;text-transform:uppercase;letter-spacing:.1em;padding-bottom:8px;border-bottom:1px solid #EAE5DC}
+    .section{margin-bottom:28px}
+    table{width:100%;border-collapse:collapse}
+    th{text-align:left;padding:8px 12px;border-bottom:2px solid #EAE5DC;font-size:9px;text-transform:uppercase;letter-spacing:.08em;color:#7A6A5B}
+    td{padding:10px 12px;border-bottom:1px solid #EAE5DC;font-size:12px}
+    .footer{margin-top:40px;padding-top:16px;border-top:1px solid #EAE5DC;font-size:11px;color:#7A6A5B;display:flex;justify-content:space-between}
+    @page{size:A4;margin:20mm}
+    @media print{body{padding:0}}
+  </style></head><body>
+    <div class="header">
+      <div><div class="logo">AURUM <span>REALTY</span></div><div class="subtitle">Resumen ${period === 'monthly' ? 'mensual' : 'anual'} · ${now}</div></div>
+      <div style="text-align:right;font-size:11px;color:#7A6A5B"><div>Leads activos: <strong>${leads.length}</strong></div><div>Propiedades: <strong>${activeProperties}</strong></div></div>
+    </div>
+    <div class="kpi-grid">
+      <div class="kpi"><div class="kpi-label">Pipeline Total</div><div class="kpi-value">${fmt(totalAmountUSD)}</div></div>
+      <div class="kpi"><div class="kpi-label">Cierres del período</div><div class="kpi-value" style="color:#1E4620">${closed.length}</div></div>
+      <div class="kpi"><div class="kpi-label">Tasa de cierre</div><div class="kpi-value">${closureRate}%</div></div>
+      <div class="kpi"><div class="kpi-label">Ticket promedio</div><div class="kpi-value" style="font-size:15px">${fmt(avgTicketUSD)}</div></div>
+      <div class="kpi"><div class="kpi-label">Propiedades activas</div><div class="kpi-value">${activeProperties}</div></div>
+    </div>
+    <div class="section">
+      <h2>Ranking del equipo</h2>
+      <table><thead><tr><th>#</th><th>Agente</th><th>Rol</th><th>Leads asignados</th><th>Cierres</th><th>Tasa cierre</th><th>Comisión estimada</th></tr></thead>
+      <tbody>${agentRows}</tbody></table>
+    </div>
+    <div class="footer"><span>Aurum Realty CRM · Generado automáticamente</span><span>${now}</span></div>
+  </body></html>`
+
+  const w = window.open('', '_blank', 'width=900,height=700')
+  if (!w) { alert('Permití ventanas emergentes para exportar el PDF'); return }
+  w.document.write(html)
+  w.document.close()
+  setTimeout(() => { w.focus(); w.print() }, 500)
+}
+
+// ── period selector modal ─────────────────────────────────────────────────────
+function PeriodModal({ onSelect, onClose }: { onSelect: (p: 'monthly' | 'annual') => void; onClose: () => void }) {
+  return (
+    <>
+      <div onClick={onClose} style={{ position: 'fixed', inset: 0, background: 'rgba(36,25,17,0.3)', backdropFilter: 'blur(2px)', zIndex: 80 }} />
+      <div style={{
+        position: 'fixed', top: '50%', left: '50%', transform: 'translate(-50%,-50%)',
+        width: 340, background: '#fff', borderRadius: 'var(--radius-lg)',
+        border: '1px solid var(--border)', boxShadow: '0 24px 80px rgba(36,25,17,.22)', zIndex: 90, overflow: 'hidden',
+      }}>
+        <div style={{ padding: '18px 22px 14px', borderBottom: '1px solid var(--border)' }}>
+          <div style={{ fontSize: 10.5, color: 'var(--ink-3)', letterSpacing: '0.12em', textTransform: 'uppercase', fontWeight: 600 }}>EXPORTAR</div>
+          <h2 style={{ fontSize: 16, fontWeight: 700, fontFamily: 'var(--font-jakarta)', marginTop: 3 }}>Seleccionar período</h2>
+        </div>
+        <div style={{ padding: '16px 22px 20px', display: 'flex', flexDirection: 'column', gap: 10 }}>
+          <button onClick={() => { onSelect('monthly'); onClose() }} style={{ padding: '14px 18px', borderRadius: 'var(--radius)', border: '1px solid var(--border)', background: 'var(--surface)', cursor: 'pointer', textAlign: 'left' }}>
+            <div style={{ fontWeight: 700, fontSize: 14 }}>Resumen mensual</div>
+            <div style={{ fontSize: 12, color: 'var(--ink-3)', marginTop: 3 }}>Pipeline, cierres y equipo del mes actual</div>
+          </button>
+          <button onClick={() => { onSelect('annual'); onClose() }} style={{ padding: '14px 18px', borderRadius: 'var(--radius)', border: '1px solid var(--border)', background: 'var(--surface)', cursor: 'pointer', textAlign: 'left' }}>
+            <div style={{ fontWeight: 700, fontSize: 14 }}>Resumen anual</div>
+            <div style={{ fontSize: 12, color: 'var(--ink-3)', marginTop: 3 }}>Consolidado del año con ranking acumulado</div>
+          </button>
+          <button onClick={onClose} style={{ padding: '9px', borderRadius: 'var(--radius)', border: '1px solid var(--border)', background: '#fff', cursor: 'pointer', fontSize: 13, color: 'var(--ink-3)', fontWeight: 500 }}>Cancelar</button>
+        </div>
+      </div>
+    </>
+  )
+}
+
 // ── main component ────────────────────────────────────────────────────────────
 export default function ExecutiveDashboard({ leads, agents, dollarRate, activeProperties }: {
   leads: Lead[]
@@ -155,6 +258,7 @@ export default function ExecutiveDashboard({ leads, agents, dollarRate, activePr
   activeProperties: number
 }) {
   const [currency, setCurrency] = useState<'USD' | 'ARS'>('USD')
+  const [showPeriodModal, setShowPeriodModal] = useState(false)
 
   // KPI derivations
   const closed = useMemo(() => leads.filter(l => l.stage?.key === 'escritura'), [leads])
@@ -180,17 +284,14 @@ export default function ExecutiveDashboard({ leads, agents, dollarRate, activePr
     ? `≈ ARS ${compactNum(totalAmountUSD * dollarRate)}`
     : `≈ USD ${compactNum(totalAmountUSD)}`
 
-  // Closed display
   const closedDisplay = currency === 'USD'
     ? `USD ${compactNum(closedAmountUSD)}`
     : `ARS ${compactNum(closedAmountUSD * dollarRate)}`
 
-  // Ticket display
   const ticketDisplay = currency === 'USD'
     ? fmtUSD(avgTicketUSD)
     : fmtARS(avgTicketUSD * dollarRate)
 
-  // Origin breakdown
   const originCounts = useMemo(() => {
     const map: Record<string, number> = {}
     for (const label of ORIGIN_LABELS) map[label] = 0
@@ -203,7 +304,6 @@ export default function ExecutiveDashboard({ leads, agents, dollarRate, activePr
     label, count: originCounts[label] || 0, color: ORIGIN_COLORS[label],
   }))
 
-  // Agent ranking
   const agentStats = useMemo(() => {
     return agents.map(agent => {
       const agentLeads = leads.filter(l => l.agent_id === agent.id)
@@ -218,56 +318,61 @@ export default function ExecutiveDashboard({ leads, agents, dollarRate, activePr
     }).sort((a, b) => b.closed - a.closed)
   }, [agents, leads, dollarRate])
 
-  const currencyToggle = (
-    <div style={{ display: 'flex', borderRadius: 8, overflow: 'hidden', border: '1px solid var(--border)', height: 34 }}>
-      {(['USD', 'ARS'] as const).map(c => (
-        <button key={c} onClick={() => setCurrency(c)} style={{
-          padding: '0 14px', fontSize: 12, fontWeight: 600, cursor: 'pointer', border: 0,
-          background: currency === c ? 'var(--ink)' : '#fff',
-          color: currency === c ? '#fff' : 'var(--ink-3)',
-          transition: 'background 0.2s',
-        }}>{c}</button>
-      ))}
+  const rightControls = (
+    <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
+      <button onClick={() => setShowPeriodModal(true)} style={{
+        display: 'inline-flex', alignItems: 'center', gap: 8,
+        padding: '8px 14px', borderRadius: 'var(--radius)', border: '1px solid var(--border)',
+        background: '#fff', color: 'var(--ink)', fontSize: 12.5, fontWeight: 600, cursor: 'pointer',
+      }}>
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round"><path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><line x1="10" y1="9" x2="8" y2="9"/></svg>
+        Exportar resumen
+      </button>
+      <div style={{ display: 'flex', borderRadius: 8, overflow: 'hidden', border: '1px solid var(--border)', height: 34 }}>
+        {(['USD', 'ARS'] as const).map(c => (
+          <button key={c} onClick={() => setCurrency(c)} style={{
+            padding: '0 14px', fontSize: 12, fontWeight: 600, cursor: 'pointer', border: 0,
+            background: currency === c ? 'var(--ink)' : '#fff',
+            color: currency === c ? '#fff' : 'var(--ink-3)',
+            transition: 'background 0.2s',
+          }}>{c}</button>
+        ))}
+      </div>
     </div>
   )
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
-      <Topbar title="Dashboard Ejecutivo" crumb="CRM" right={currencyToggle} />
+      <Topbar title="Dashboard Ejecutivo" crumb="CRM" right={rightControls} />
 
       <div style={{ padding: 24, display: 'flex', flexDirection: 'column', gap: 20, overflowY: 'auto', flex: 1 }}>
 
         {/* ── 5 KPI Hero Row ── */}
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5,1fr)', gap: 14 }}>
-          {/* Pipeline Total */}
           <div style={{ background: '#fff', border: '1px solid var(--border)', borderRadius: 'var(--radius-lg)', padding: '18px 20px' }}>
             <div style={{ fontSize: 11, letterSpacing: '0.14em', textTransform: 'uppercase', color: 'var(--ink-3)', fontWeight: 600 }}>Pipeline Total</div>
             <div className="num" style={{ fontFamily: 'var(--font-jakarta)', fontWeight: 700, fontSize: 26, marginTop: 8, letterSpacing: '-0.02em' }}>{pipelineDisplay}</div>
             <div style={{ fontSize: 11, color: 'var(--ink-3)', marginTop: 6 }}>{pipelineSub}</div>
           </div>
 
-          {/* Cierres este mes */}
           <div style={{ background: '#fff', border: '1px solid var(--border)', borderRadius: 'var(--radius-lg)', padding: '18px 20px' }}>
             <div style={{ fontSize: 11, letterSpacing: '0.14em', textTransform: 'uppercase', color: 'var(--ink-3)', fontWeight: 600 }}>Cierres este mes</div>
             <div className="num" style={{ fontFamily: 'var(--font-jakarta)', fontWeight: 700, fontSize: 30, marginTop: 8, letterSpacing: '-0.02em', color: 'var(--success)' }}>{closed.length}</div>
             <div style={{ fontSize: 11, color: 'var(--ink-3)', marginTop: 6 }}>{closedDisplay}</div>
           </div>
 
-          {/* Tasa de cierre */}
           <div style={{ background: '#fff', border: '1px solid var(--border)', borderRadius: 'var(--radius-lg)', padding: '18px 20px' }}>
             <div style={{ fontSize: 11, letterSpacing: '0.14em', textTransform: 'uppercase', color: 'var(--ink-3)', fontWeight: 600 }}>Tasa de cierre</div>
             <div className="num" style={{ fontFamily: 'var(--font-jakarta)', fontWeight: 700, fontSize: 30, marginTop: 8, letterSpacing: '-0.02em' }}>{closureRate}%</div>
             <div style={{ fontSize: 11, color: 'var(--ink-3)', marginTop: 6 }}>Excluye nuevas consultas</div>
           </div>
 
-          {/* Ticket promedio */}
           <div style={{ background: '#fff', border: '1px solid var(--border)', borderRadius: 'var(--radius-lg)', padding: '18px 20px' }}>
             <div style={{ fontSize: 11, letterSpacing: '0.14em', textTransform: 'uppercase', color: 'var(--ink-3)', fontWeight: 600 }}>Ticket promedio</div>
             <div className="num" style={{ fontFamily: 'var(--font-jakarta)', fontWeight: 700, fontSize: 22, marginTop: 8, letterSpacing: '-0.02em' }}>{ticketDisplay}</div>
             <div style={{ fontSize: 11, color: 'var(--ink-3)', marginTop: 6 }}>Sobre cierres</div>
           </div>
 
-          {/* Propiedades activas */}
           <div style={{ background: '#fff', border: '1px solid var(--border)', borderRadius: 'var(--radius-lg)', padding: '18px 20px' }}>
             <div style={{ fontSize: 11, letterSpacing: '0.14em', textTransform: 'uppercase', color: 'var(--ink-3)', fontWeight: 600 }}>Propiedades activas</div>
             <div className="num" style={{ fontFamily: 'var(--font-jakarta)', fontWeight: 700, fontSize: 30, marginTop: 8, letterSpacing: '-0.02em' }}>{activeProperties}</div>
@@ -309,8 +414,7 @@ export default function ExecutiveDashboard({ leads, agents, dollarRate, activePr
               fontWeight: 600, letterSpacing: '0.06em', textTransform: 'uppercase',
               borderBottom: '1px solid var(--border)',
             }}>
-              <span>#</span>
-              <span>Agente</span>
+              <span>#</span><span>Agente</span>
               <span style={{ textAlign: 'right' }}>Leads asignados</span>
               <span style={{ textAlign: 'right' }}>Tasa cierre</span>
               <span style={{ textAlign: 'right' }}>Cierres</span>
@@ -354,6 +458,13 @@ export default function ExecutiveDashboard({ leads, agents, dollarRate, activePr
         </Card>
 
       </div>
+
+      {showPeriodModal && (
+        <PeriodModal
+          onClose={() => setShowPeriodModal(false)}
+          onSelect={(period) => exportPDF({ leads, agents, dollarRate, currency, closureRate, closed, totalAmountUSD, avgTicketUSD, activeProperties, period })}
+        />
+      )}
     </div>
   )
 }

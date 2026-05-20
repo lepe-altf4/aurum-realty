@@ -5,6 +5,7 @@ import { StatusTag, OpTag, Tag } from '@/components/ui/tags'
 import TypeIcon from '@/components/ui/type-icon'
 import { fmtUSD, fmtARS } from '@/lib/format'
 import type { Property } from '@/lib/types'
+import NewPropertyModal from '@/components/properties/new-property-modal'
 
 const TYPES = ['Todos', 'Casa', 'Departamento', 'Lote', 'Local']
 
@@ -22,24 +23,30 @@ function MiniStat({ label, value, sub, accent }: { label: string; value: number;
 }
 
 export default function PropertiesView({ initialProperties }: { initialProperties: Property[] }) {
+  const [properties, setProperties] = useState<Property[]>(initialProperties)
   const [opFilter, setOpFilter] = useState('Todas')
   const [typeFilter, setTypeFilter] = useState('Todos')
+  const [showNewProperty, setShowNewProperty] = useState(false)
 
   const filtered = useMemo(() =>
-    initialProperties.filter(p =>
+    properties.filter(p =>
       (opFilter === 'Todas' || p.operation === opFilter) &&
       (typeFilter === 'Todos' || p.type === typeFilter)
     ),
-    [initialProperties, opFilter, typeFilter]
+    [properties, opFilter, typeFilter]
   )
 
   const stats = useMemo(() => ({
-    total: initialProperties.length,
-    disponible: initialProperties.filter(p => p.status === 'Disponible').length,
-    reservada: initialProperties.filter(p => p.status === 'Reservada').length,
-    vendida: initialProperties.filter(p => p.status === 'Vendida').length,
-    alquiler: initialProperties.filter(p => p.operation === 'Alquiler').length,
-  }), [initialProperties])
+    total: properties.length,
+    disponible: properties.filter(p => p.status === 'Disponible').length,
+    reservada: properties.filter(p => p.status === 'Reservada').length,
+    vendida: properties.filter(p => p.status === 'Vendida').length,
+    alquiler: properties.filter(p => p.operation === 'Alquiler').length,
+  }), [properties])
+
+  function handlePropertyCreated(prop: Property) {
+    setProperties(prev => [prop, ...prev])
+  }
 
   return (
     <>
@@ -52,7 +59,7 @@ export default function PropertiesView({ initialProperties }: { initialPropertie
               <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round"><path d="M12 4v12m0 0-4-4m4 4 4-4M5 20h14"/></svg>
               Importar ZonaProp
             </button>
-            <button style={{ display: 'inline-flex', alignItems: 'center', gap: 8, padding: '9px 14px', borderRadius: 'var(--radius)', fontWeight: 600, fontSize: 13, border: 'none', background: 'var(--accent)', color: '#fff', cursor: 'pointer' }}>
+            <button onClick={() => setShowNewProperty(true)} style={{ display: 'inline-flex', alignItems: 'center', gap: 8, padding: '9px 14px', borderRadius: 'var(--radius)', fontWeight: 600, fontSize: 13, border: 'none', background: 'var(--accent)', color: '#fff', cursor: 'pointer' }}>
               <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round"><path d="M12 5v14M5 12h14"/></svg>
               Nueva Propiedad
             </button>
@@ -114,7 +121,6 @@ export default function PropertiesView({ initialProperties }: { initialPropertie
                     </td>
                     <td style={{ padding: '14px', borderBottom: '1px solid var(--border)' }}>
                       <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-                        {/* Photo thumbnail */}
                         <div style={{ width: 56, height: 42, borderRadius: 6, overflow: 'hidden', flexShrink: 0, background: 'var(--surface)', border: '1px solid var(--border)', position: 'relative' }}>
                           {p.photo_url ? (
                             <img src={p.photo_url} alt={p.address} style={{ width: '100%', height: '100%', objectFit: 'cover' }} loading="lazy" />
@@ -182,6 +188,13 @@ export default function PropertiesView({ initialProperties }: { initialPropertie
           </div>
         </div>
       </div>
+
+      {showNewProperty && (
+        <NewPropertyModal
+          onClose={() => setShowNewProperty(false)}
+          onCreated={handlePropertyCreated}
+        />
+      )}
     </>
   )
 }

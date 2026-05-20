@@ -1,13 +1,14 @@
 'use client'
 import { useState, useMemo } from 'react'
 import {
-  DndContext, DragEndEvent, DragOverEvent, DragStartEvent,
+  DndContext, DragEndEvent, DragStartEvent,
   PointerSensor, useSensor, useSensors, DragOverlay, closestCorners,
 } from '@dnd-kit/core'
 import { createClient } from '@/lib/supabase/client'
 import Topbar from '@/components/ui/topbar'
 import KanbanColumn from '@/components/pipeline/kanban-column'
 import LeadCard from '@/components/pipeline/lead-card'
+import NewLeadModal from '@/components/leads/new-lead-modal'
 import type { Lead, PipelineStage, Agent } from '@/lib/types'
 
 type OpFilter = 'Todas' | 'Venta' | 'Alquiler'
@@ -42,6 +43,8 @@ export default function PipelineView({ initialLeads, stages, agents }: {
   const [leads, setLeads] = useState<Lead[]>(initialLeads)
   const [op, setOp] = useState<OpFilter>('Todas')
   const [activeId, setActiveId] = useState<string | null>(null)
+  const [showNewLead, setShowNewLead] = useState(false)
+  const [defaultStageId, setDefaultStageId] = useState<string | undefined>(undefined)
 
   const supabase = createClient()
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 8 } }))
@@ -72,7 +75,6 @@ export default function PipelineView({ initialLeads, stages, agents }: {
       l.id === leadId ? { ...l, stage_id: targetStageId, stage: newStage } : l
     ))
     await supabase.from('leads').update({ stage_id: targetStageId }).eq('id', leadId)
-    // Log activity
     const { data: { user } } = await supabase.auth.getUser()
     const { data: agent } = user ? await supabase.from('agents').select('id').eq('auth_user_id', user.id).single() : { data: null }
     if (agent) {
@@ -83,6 +85,15 @@ export default function PipelineView({ initialLeads, stages, agents }: {
         description: `Lead movido a etapa ${newStage.name}`,
       })
     }
+  }
+
+  function handleAddLeadToStage(stageId: string) {
+    setDefaultStageId(stageId)
+    setShowNewLead(true)
+  }
+
+  function handleLeadCreated(lead: Lead) {
+    setLeads(prev => [lead, ...prev])
   }
 
   return (
@@ -96,7 +107,7 @@ export default function PipelineView({ initialLeads, stages, agents }: {
               <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round"><path d="M3 5h18l-7 9v6l-4-2v-4z"/></svg>
               Filtros
             </button>
-            <button style={{ display: 'inline-flex', alignItems: 'center', gap: 8, padding: '9px 14px', borderRadius: 'var(--radius)', fontWeight: 600, fontSize: 13, border: 'none', background: 'var(--accent)', color: '#fff', cursor: 'pointer' }}>
+            <button onClick={() => { setDefaultStageId(stages[0]?.id); setShowNewLead(true) }} style={{ display: 'inline-flex', alignItems: 'center', gap: 8, padding: '9px 14px', borderRadius: 'var(--radius)', fontWeight: 600, fontSize: 13, border: 'none', background: 'var(--accent)', color: '#fff', cursor: 'pointer' }}>
               <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round"><path d="M12 5v14M5 12h14"/></svg>
               Nuevo Lead
             </button>
@@ -130,6 +141,7 @@ export default function PipelineView({ initialLeads, stages, agents }: {
               leads={filtered.filter(l => l.stage_id === stage.id)}
               stageIndex={stages.findIndex(s => s.id === stage.id)}
               totalStages={stages.length}
+              onAddLead={handleAddLeadToStage}
             />
           ))}
         </div>
@@ -138,6 +150,16 @@ export default function PipelineView({ initialLeads, stages, agents }: {
       <DragOverlay>
         {activeLead && <LeadCard lead={activeLead} isDragging />}
       </DragOverlay>
+
+      {showNewLead && (
+        <NewLeadModal
+          stages={stages}
+          agents={agents}
+          defaultStageId={defaultStageId}
+          onClose={() => { setShowNewLead(false); setDefaultStageId(undefined) }}
+          onCreated={handleLeadCreated}
+        />
+      )}
     </DndContext>
   )
 }
