@@ -90,13 +90,13 @@ export default function NewLeadModal({ stages, agents, defaultStageId, onClose, 
           <div style={{ flex: 1, overflowY: 'auto', padding: '20px 22px', display: 'flex', flexDirection: 'column', gap: 14 }}>
             <div>
               <label style={lbl}>Nombre *</label>
-              <input required value={name} onChange={e => setName(e.target.value)} placeholder="Nombre completo del lead" style={inp} autoFocus />
+              <input required value={name} onChange={e => setName(e.target.value.slice(0, 200))} maxLength={200} placeholder="Nombre completo del lead" style={inp} autoFocus />
             </div>
 
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
               <div>
                 <label style={lbl}>Teléfono</label>
-                <input value={phone} onChange={e => setPhone(e.target.value)} placeholder="+549 11..." style={inp} />
+                <input value={phone} onChange={e => setPhone(e.target.value.replace(/[^\d+\s()\-]/g, '').slice(0, 25))} maxLength={25} placeholder="+549 11..." style={inp} />
               </div>
               <div>
                 <label style={lbl}>Email</label>
@@ -153,7 +153,7 @@ export default function NewLeadModal({ stages, agents, defaultStageId, onClose, 
 
             <div>
               <label style={lbl}>Notas iniciales</label>
-              <textarea rows={3} value={notes} onChange={e => setNotes(e.target.value)} placeholder="Contexto, propiedad de interés, observaciones..." style={{ ...inp, resize: 'none', lineHeight: 1.5 }} />
+              <textarea rows={3} value={notes} onChange={e => setNotes(e.target.value.slice(0, 500))} maxLength={500} placeholder="Contexto, propiedad de interés, observaciones..." style={{ ...inp, resize: 'none', lineHeight: 1.5 }} />
             </div>
 
             {error && (

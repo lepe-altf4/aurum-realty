@@ -136,7 +136,7 @@ export default function NewPropertyModal({ onClose, onCreated }: {
           <div style={{ flex: 1, overflowY: 'auto', padding: '20px 22px', display: 'flex', flexDirection: 'column', gap: 14 }}>
             <div>
               <label style={lbl}>Dirección *</label>
-              <input required value={address} onChange={e => setAddress(e.target.value)} placeholder="Av. Corrientes 3456, CABA" style={inp} autoFocus />
+              <input required value={address} onChange={e => setAddress(e.target.value.slice(0, 300))} maxLength={300} placeholder="Av. Corrientes 3456, CABA" style={inp} autoFocus />
             </div>
 
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
@@ -215,7 +215,7 @@ export default function NewPropertyModal({ onClose, onCreated }: {
 
             <div>
               <label style={lbl}>Descripción</label>
-              <textarea rows={3} value={description} onChange={e => setDescription(e.target.value)} placeholder="Detalles adicionales de la propiedad..." style={{ ...inp, resize: 'none', lineHeight: 1.5 }} />
+              <textarea rows={3} value={description} onChange={e => setDescription(e.target.value.slice(0, 500))} maxLength={500} placeholder="Detalles adicionales de la propiedad..." style={{ ...inp, resize: 'none', lineHeight: 1.5 }} />
             </div>
 
             {/* Image upload */}

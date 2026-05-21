@@ -5,6 +5,16 @@ import { SourceTag, StageTag, OpTag, Tag } from '@/components/ui/tags'
 import { fmtUSD, fmtARS } from '@/lib/format'
 import type { Lead, PipelineStage, Activity, Property } from '@/lib/types'
 
+function esc(s: string | null | undefined): string {
+  if (!s) return ''
+  return s
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#039;')
+}
+
 export default function LeadDrawer({ lead, stages, onClose, onMove, onUpdate }: {
   lead: Lead
   stages: PipelineStage[]
@@ -121,7 +131,7 @@ export default function LeadDrawer({ lead, stages, onClose, onMove, onUpdate }: 
 <html lang="es">
 <head>
 <meta charset="UTF-8">
-<title>Boleto de Reserva · ${lead.name}</title>
+<title>Boleto de Reserva · ${esc(lead.name)}</title>
 <style>
   * { margin: 0; padding: 0; box-sizing: border-box; }
   body { font-family: Georgia, serif; color: #241911; padding: 40px; }
@@ -155,7 +165,7 @@ export default function LeadDrawer({ lead, stages, onClose, onMove, onUpdate }: 
   </div>
   <div class="doc-id">
     <div class="label">Nº de Boleto</div>
-    <div class="value">BOL-${lead.id.slice(0, 8).toUpperCase()}</div>
+    <div class="value">BOL-${esc(lead.id.slice(0, 8).toUpperCase())}</div>
     <div class="label" style="margin-top:6px">Fecha</div>
     <div class="value" style="font-family:inherit;font-size:12px">${new Date().toLocaleDateString('es-AR', { day: '2-digit', month: 'long', year: 'numeric' })}</div>
   </div>
@@ -166,10 +176,10 @@ export default function LeadDrawer({ lead, stages, onClose, onMove, onUpdate }: 
 <div class="section">
   <div class="section-title">Datos del comprador / locatario</div>
   <div class="grid-2">
-    <div class="field"><div class="field-label">Nombre completo</div><div class="field-value">${lead.name}</div></div>
-    <div class="field"><div class="field-label">Teléfono</div><div class="field-value">${lead.phone || '—'}</div></div>
-    <div class="field"><div class="field-label">Email</div><div class="field-value">${lead.email || '—'}</div></div>
-    <div class="field"><div class="field-label">Operación</div><div class="field-value">${lead.operation || '—'}</div></div>
+    <div class="field"><div class="field-label">Nombre completo</div><div class="field-value">${esc(lead.name)}</div></div>
+    <div class="field"><div class="field-label">Teléfono</div><div class="field-value">${esc(lead.phone) || '—'}</div></div>
+    <div class="field"><div class="field-label">Email</div><div class="field-value">${esc(lead.email) || '—'}</div></div>
+    <div class="field"><div class="field-label">Operación</div><div class="field-value">${esc(lead.operation) || '—'}</div></div>
   </div>
 </div>
 
@@ -177,10 +187,10 @@ ${lead.property ? `
 <div class="section">
   <div class="section-title">Propiedad</div>
   <div class="grid-2">
-    <div class="field"><div class="field-label">Dirección</div><div class="field-value">${lead.property.address}</div></div>
-    <div class="field"><div class="field-label">Barrio</div><div class="field-value">${lead.property.neighborhood || '—'}</div></div>
-    <div class="field"><div class="field-label">Tipo</div><div class="field-value">${lead.property.type}</div></div>
-    <div class="field"><div class="field-label">Superficie</div><div class="field-value">${lead.property.sqm ? lead.property.sqm + ' m²' : '—'}</div></div>
+    <div class="field"><div class="field-label">Dirección</div><div class="field-value">${esc(lead.property.address)}</div></div>
+    <div class="field"><div class="field-label">Barrio</div><div class="field-value">${esc(lead.property.neighborhood) || '—'}</div></div>
+    <div class="field"><div class="field-label">Tipo</div><div class="field-value">${esc(lead.property.type)}</div></div>
+    <div class="field"><div class="field-label">Superficie</div><div class="field-value">${lead.property.sqm ? esc(String(lead.property.sqm)) + ' m²' : '—'}</div></div>
   </div>
 </div>
 ` : ''}
@@ -190,14 +200,14 @@ ${lead.property ? `
   ${lead.amount ? `
   <div class="amount-box">
     <div class="amount-label">Monto de seña / primer pago</div>
-    <div class="amount-value">${lead.currency === 'USD' ? 'USD ' + lead.amount.toLocaleString('es-AR') : '$ ' + lead.amount.toLocaleString('es-AR')}</div>
+    <div class="amount-value">${lead.currency === 'USD' ? 'USD ' + esc(lead.amount.toLocaleString('es-AR')) : '$ ' + esc(lead.amount.toLocaleString('es-AR'))}</div>
   </div>
   ` : '<p style="color:#7A6A5B;font-size:12px;margin-top:8px">Monto a confirmar</p>'}
 </div>
 
 <div class="section">
   <div class="section-title">Agente responsable</div>
-  <div class="field"><div class="field-value">${lead.agent?.name || '—'}</div></div>
+  <div class="field"><div class="field-value">${esc(lead.agent?.name) || '—'}</div></div>
 </div>
 
 <div class="signatures">
@@ -446,7 +456,7 @@ ${lead.property ? `
           <div style={{ border: '1px solid var(--border)', borderRadius: 'var(--radius)', padding: 12 }}>
             <textarea
               rows={2} value={note}
-              onChange={e => setNote(e.target.value)}
+              onChange={e => setNote(e.target.value.slice(0, 500))}
               onKeyDown={e => { if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) registerNote() }}
               placeholder='Anotá la interacción: "Llamé, visita el jueves 14:30"'
               style={{ width: '100%', border: 0, outline: 0, resize: 'none', fontFamily: 'inherit', fontSize: 14, color: 'var(--ink)', background: 'transparent', padding: '2px 4px 6px' }}

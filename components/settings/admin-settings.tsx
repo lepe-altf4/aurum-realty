@@ -68,14 +68,14 @@ function OrgTab({ org }: { org: Organization | null }) {
     <div style={{ maxWidth: 520, display: 'flex', flexDirection: 'column', gap: 18 }}>
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
         <FormField label="Nombre de la organización">
-          <input style={inputStyle} value={form.name} onChange={e => setForm(f => ({ ...f, name: e.target.value }))} />
+          <input style={inputStyle} value={form.name} onChange={e => setForm(f => ({ ...f, name: e.target.value.slice(0, 200) }))} maxLength={200} />
         </FormField>
         <FormField label="CUIT">
-          <input style={inputStyle} value={form.cuit} onChange={e => setForm(f => ({ ...f, cuit: e.target.value }))} placeholder="XX-XXXXXXXX-X" />
+          <input style={inputStyle} value={form.cuit} onChange={e => setForm(f => ({ ...f, cuit: e.target.value.replace(/[^\d\-]/g, '').slice(0, 20) }))} maxLength={20} placeholder="XX-XXXXXXXX-X" />
         </FormField>
       </div>
       <FormField label="Dirección">
-        <input style={inputStyle} value={form.address} onChange={e => setForm(f => ({ ...f, address: e.target.value }))} placeholder="Av. Corrientes 1234, CABA" />
+        <input style={inputStyle} value={form.address} onChange={e => setForm(f => ({ ...f, address: e.target.value.slice(0, 300) }))} maxLength={300} placeholder="Av. Corrientes 1234, CABA" />
       </FormField>
       <FormField label="Cotización dólar">
         <div style={{ display: 'flex', alignItems: 'center', border: '1px solid var(--border)', borderRadius: 8, overflow: 'hidden', background: '#fff' }}>
