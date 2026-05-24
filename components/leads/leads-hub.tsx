@@ -9,7 +9,7 @@ import type { Lead, PipelineStage, Agent, Property } from '@/lib/types'
 
 const ORIGINS = ['WhatsApp','Instagram','ZonaProp','Argenprop','Web','Referido']
 
-type SavedView = null | 'premium' | 'atrasados' | 'palermo'
+type SavedView = null | 'premium' | 'atrasados' | 'centro-sp'
 
 function SummaryStat({ label, value, sub, color }: { label: string; value: string|number; sub: string; color?: string }) {
   return (
@@ -144,11 +144,11 @@ export default function LeadsHub({ initialLeads, stages, agents }: {
     const view = params.get('view')
     if (view === 'premium') setSavedView('premium')
     else if (view === 'atrasados') setSavedView('atrasados')
-    else if (view === 'palermo') setSavedView('palermo')
+    else if (view === 'centro-sp') setSavedView('centro-sp')
   }, [])
 
   useEffect(() => {
-    if (savedView !== 'palermo') { setZoneProperties([]); return }
+    if (savedView !== 'centro-sp') { setZoneProperties([]); return }
     setLoadingZone(true)
     const supabase = createClient()
     supabase
@@ -158,10 +158,10 @@ export default function LeadsHub({ initialLeads, stages, agents }: {
       .order('created_at', { ascending: false })
       .limit(20)
       .then(({ data }) => {
-        const zoneProps = (data || []).filter((p: Property) =>
-          p.neighborhood?.toLowerCase().includes('palermo') ||
-          p.neighborhood?.toLowerCase().includes('recoleta')
-        )
+        const zoneProps = (data || []).filter((p: Property) => {
+          const n = p.neighborhood?.toLowerCase() ?? ''
+          return n.includes('centro') || n.includes('san pablo')
+        })
         setZoneProperties(zoneProps)
         setLoadingZone(false)
       })
@@ -172,14 +172,14 @@ export default function LeadsHub({ initialLeads, stages, agents }: {
 
     // Apply saved view filter first
     if (savedView === 'premium') {
-      base = base.filter(l => l.hot || (l.currency === 'USD' && (l.amount ?? 0) > 500000))
+      base = base.filter(l => l.hot || (l.currency === 'USD' && (l.amount ?? 0) > 100000))
     } else if (savedView === 'atrasados') {
       base = base.filter(l => l.days_without_contact > 5)
-    } else if (savedView === 'palermo') {
-      base = base.filter(l =>
-        l.property?.neighborhood?.toLowerCase().includes('palermo') ||
-        l.property?.neighborhood?.toLowerCase().includes('recoleta')
-      )
+    } else if (savedView === 'centro-sp') {
+      base = base.filter(l => {
+        const n = l.property?.neighborhood?.toLowerCase() ?? ''
+        return n.includes('centro') || n.includes('san pablo')
+      })
     }
 
     return base.filter(l =>
@@ -221,9 +221,9 @@ export default function LeadsHub({ initialLeads, stages, agents }: {
   }, [])
 
   const SAVED_VIEWS = [
-    { key: 'premium' as const, label: 'Leads Premium', sub: 'Ticket > USD 500k', color: 'var(--gold)', bg: 'var(--gold-soft)', border: '#E2D4B5' },
+    { key: 'premium' as const, label: 'Leads Premium', sub: 'Ticket > USD 100k', color: 'var(--gold)', bg: 'var(--gold-soft)', border: '#E2D4B5' },
     { key: 'atrasados' as const, label: 'Atrasados +5 días', sub: 'Sin contacto', color: 'var(--danger)', bg: '#FBE8E5', border: '#E9CDC9' },
-    { key: 'palermo' as const, label: 'Palermo & Recoleta', sub: 'Por zona premium', color: 'var(--ink)', bg: 'var(--surface)', border: 'var(--border)' },
+    { key: 'centro-sp' as const, label: 'Centro & San Pablo', sub: 'Cipolletti · zonas top', color: 'var(--ink)', bg: 'var(--surface)', border: 'var(--border)' },
   ]
 
   return (
@@ -288,7 +288,7 @@ export default function LeadsHub({ initialLeads, stages, agents }: {
           <div style={{ marginBottom: 16, padding: '14px 20px', borderRadius: 'var(--radius)', background: 'var(--gold-soft)', border: '1px solid #E2D4B5', display: 'flex', alignItems: 'center', gap: 16 }}>
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="var(--gold)" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>
             <div style={{ flex: 1 }}>
-              <div style={{ fontWeight: 600, fontSize: 13, color: '#6E5630' }}>Vista Premium activa · {filtered.length} leads con ticket &gt; USD 500k</div>
+              <div style={{ fontWeight: 600, fontSize: 13, color: '#6E5630' }}>Vista Premium activa · {filtered.length} leads con ticket &gt; USD 100k</div>
               <div style={{ fontSize: 12, color: '#8E6840', marginTop: 2 }}>
                 {filtered.filter(l => l.days_without_contact >= 2).length} leads sin contacto humano en las últimas 48hs
                 {filtered.filter(l => l.days_without_contact >= 2).length > 0 && <span style={{ marginLeft: 8, padding: '2px 8px', borderRadius: 999, background: 'var(--danger)', color: '#fff', fontSize: 10, fontWeight: 700 }}>ALERTA</span>}
@@ -316,12 +316,12 @@ export default function LeadsHub({ initialLeads, stages, agents }: {
           </div>
         )}
 
-        {savedView === 'palermo' && (
+        {savedView === 'centro-sp' && (
           <div style={{ marginBottom: 16, display: 'grid', gridTemplateColumns: '1fr 320px', gap: 16 }}>
             <div style={{ padding: '14px 20px', borderRadius: 'var(--radius)', background: 'var(--surface)', border: '1px solid var(--border)', display: 'flex', alignItems: 'center', gap: 12 }}>
               <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="var(--ink-2)" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M20 10c0 6-8 12-8 12S4 16 4 10a8 8 0 1 1 16 0z"/><circle cx="12" cy="10" r="3"/></svg>
               <div>
-                <div style={{ fontWeight: 600, fontSize: 13 }}>{filtered.length} leads interesados en Palermo o Recoleta</div>
+                <div style={{ fontWeight: 600, fontSize: 13 }}>{filtered.length} leads interesados en Centro o San Pablo</div>
                 <div style={{ fontSize: 12, color: 'var(--ink-3)', marginTop: 2 }}>
                   {zoneProperties.length} propiedades disponibles en zona · Match automático activo
                 </div>
@@ -354,7 +354,7 @@ export default function LeadsHub({ initialLeads, stages, agents }: {
           <SummaryStat label="Nuevos hoy"      value={leads.filter(l => new Date(l.created_at).toDateString() === new Date().toDateString()).length} sub="ingresados hoy" />
           <SummaryStat label="Sin acción 72hs" value={stats.noAction} sub="requieren follow-up" color="var(--gold)" />
           <SummaryStat label="Atrasados"       value={stats.overdue}  sub="sin contacto +5d"    color="var(--danger)" />
-          <SummaryStat label="Premium / HOT"   value={stats.hot}      sub="ticket > USD 500k"   color="var(--gold)" />
+          <SummaryStat label="Premium / HOT"   value={stats.hot}      sub="ticket > USD 100k"   color="var(--gold)" />
         </div>
 
         {/* Filters + Table */}
@@ -422,7 +422,7 @@ export default function LeadsHub({ initialLeads, stages, agents }: {
               <tbody>
                 {filtered.map(lead => {
                   const isPremiumAlert = savedView === 'premium' && lead.days_without_contact >= 2
-                  const isZoneMatch = savedView === 'palermo' && zoneProperties.some(p =>
+                  const isZoneMatch = savedView === 'centro-sp' && zoneProperties.some(p =>
                     p.neighborhood?.toLowerCase() === lead.property?.neighborhood?.toLowerCase()
                   )
                   return (
@@ -446,7 +446,7 @@ export default function LeadsHub({ initialLeads, stages, agents }: {
                             <div style={{ fontWeight: 600, color: 'var(--ink)', display: 'flex', alignItems: 'center', gap: 6 }}>
                               {lead.name}
                               {lead.hot && <span style={{ padding: '1px 6px', fontSize: 10, fontWeight: 600, background: 'var(--gold-soft)', color: '#6E5630', border: '1px solid #E2D4B5', borderRadius: 999 }}>HOT</span>}
-                              {savedView === 'premium' && !lead.hot && (l => l.currency === 'USD' && (l.amount ?? 0) > 500000)(lead) && (
+                              {savedView === 'premium' && !lead.hot && (l => l.currency === 'USD' && (l.amount ?? 0) > 100000)(lead) && (
                                 <span style={{ padding: '1px 6px', fontSize: 10, fontWeight: 700, background: 'var(--gold)', color: '#fff', borderRadius: 999 }}>VIP</span>
                               )}
                               {isPremiumAlert && <span style={{ padding: '1px 6px', fontSize: 10, fontWeight: 700, background: 'var(--danger)', color: '#fff', borderRadius: 999 }}>48H</span>}
