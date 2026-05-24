@@ -310,7 +310,13 @@ export default function LeadsHub({ initialLeads, stages, agents }: {
                 {filtered.filter(l => l.days_without_contact >= 10).length} con +10 días — recomendamos reasignar
               </div>
             </div>
-            <button onClick={() => setShowReactivation(true)} style={{ padding: '9px 16px', borderRadius: 'var(--radius)', border: '1px solid #E9CDC9', background: 'var(--danger)', color: '#fff', fontSize: 12, fontWeight: 600, cursor: 'pointer', whiteSpace: 'nowrap', flexShrink: 0 }}>
+            <button
+              type="button"
+              disabled
+              aria-disabled="true"
+              title="Próximamente"
+              style={{ padding: '9px 16px', borderRadius: 'var(--radius)', border: '1px solid #E9CDC9', background: 'var(--danger)', color: '#fff', fontSize: 12, fontWeight: 600, cursor: 'not-allowed', opacity: 0.5, whiteSpace: 'nowrap', flexShrink: 0, pointerEvents: 'auto' }}
+            >
               Iniciar secuencia de reactivación →
             </button>
           </div>
