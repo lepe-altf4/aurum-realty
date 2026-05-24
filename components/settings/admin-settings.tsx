@@ -252,15 +252,38 @@ function PipelineTab({ stages }: { stages: PipelineStage[] }) {
   const [list, setList] = useState(stages)
   const [editId, setEditId] = useState<string | null>(null)
   const [editName, setEditName] = useState('')
+  const [savingId, setSavingId] = useState<string | null>(null)
+  const [savedId, setSavedId] = useState<string | null>(null)
+  const [errorMsg, setErrorMsg] = useState<string | null>(null)
+  const supabase = createClient()
 
   function startEdit(s: PipelineStage) {
     setEditId(s.id)
     setEditName(s.name)
+    setErrorMsg(null)
   }
 
-  function saveEdit(id: string) {
-    setList(l => l.map(s => s.id === id ? { ...s, name: editName } : s))
+  async function saveEdit(id: string) {
+    const trimmed = editName.trim()
+    if (!trimmed) {
+      setErrorMsg('El nombre no puede estar vacío.')
+      return
+    }
+    setSavingId(id)
+    setErrorMsg(null)
+    const { error } = await supabase
+      .from('pipeline_stages')
+      .update({ name: trimmed })
+      .eq('id', id)
+    setSavingId(null)
+    if (error) {
+      setErrorMsg(`No se pudo guardar: ${error.message}`)
+      return
+    }
+    setList(l => l.map(s => s.id === id ? { ...s, name: trimmed } : s))
     setEditId(null)
+    setSavedId(id)
+    setTimeout(() => setSavedId(prev => prev === id ? null : prev), 1800)
   }
 
   return (
@@ -268,6 +291,12 @@ function PipelineTab({ stages }: { stages: PipelineStage[] }) {
       <div style={{ fontSize: 13, color: 'var(--ink-3)', marginBottom: 4 }}>
         Etapas del embudo de ventas ordenadas por posición.
       </div>
+      {errorMsg && (
+        <div style={{
+          padding: '8px 12px', borderRadius: 8, background: '#FBEAEA',
+          border: '1px solid #E5B4B4', color: 'var(--danger)', fontSize: 12,
+        }}>{errorMsg}</div>
+      )}
       {list.map((s, i) => (
         <div key={s.id} style={{
           display: 'flex', alignItems: 'center', gap: 12,
@@ -297,16 +326,27 @@ function PipelineTab({ stages }: { stages: PipelineStage[] }) {
           </div>
           <div>
             {editId === s.id ? (
-              <button onClick={() => saveEdit(s.id)} style={{
-                padding: '5px 12px', borderRadius: 6, border: 0,
-                background: 'var(--ink)', color: '#fff', fontSize: 12, fontWeight: 600, cursor: 'pointer',
-              }}>Guardar</button>
+              <button
+                onClick={() => saveEdit(s.id)}
+                disabled={savingId === s.id}
+                style={{
+                  padding: '5px 12px', borderRadius: 6, border: 0,
+                  background: 'var(--ink)', color: '#fff', fontSize: 12, fontWeight: 600,
+                  cursor: savingId === s.id ? 'wait' : 'pointer', opacity: savingId === s.id ? 0.7 : 1,
+                }}
+              >
+                {savingId === s.id ? 'Guardando…' : 'Guardar'}
+              </button>
             ) : (
               <button onClick={() => startEdit(s)} style={{
                 padding: '5px 12px', borderRadius: 6,
-                border: '1px solid var(--border)', background: '#fff',
-                color: 'var(--ink-2)', fontSize: 12, fontWeight: 600, cursor: 'pointer',
-              }}>Editar</button>
+                border: savedId === s.id ? '1px solid var(--success)' : '1px solid var(--border)',
+                background: savedId === s.id ? 'var(--success)' : '#fff',
+                color: savedId === s.id ? '#fff' : 'var(--ink-2)',
+                fontSize: 12, fontWeight: 600, cursor: 'pointer', transition: 'all 0.2s',
+              }}>
+                {savedId === s.id ? '✓ Guardado' : 'Editar'}
+              </button>
             )}
           </div>
         </div>
