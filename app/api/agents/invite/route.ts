@@ -61,11 +61,60 @@ export async function POST(req: Request) {
   })
 
   if (inviteError) {
+    // Log everything we get back from Supabase so the real cause lands in
+    // Vercel logs (the message surfaced to the client is often the generic
+    // "Error sending invite email" that hides the SMTP provider's reason).
+    console.error('[invite] supabase.auth.admin.inviteUserByEmail failed', {
+      email,
+      status: inviteError.status,
+      code: inviteError.code,
+      name: inviteError.name,
+      message: inviteError.message,
+    })
+
+    const rawMsg = inviteError.message ?? ''
+    const isSmtpFailure = /sending|smtp|email/i.test(rawMsg) && !/already|exists|registered/i.test(rawMsg)
+    const isDuplicate = inviteError.status === 422
+      || inviteError.code === 'email_exists'
+      || /already|exists|registered/i.test(rawMsg)
+
+    // When SMTP fails GoTrue often still creates the auth.users row before
+    // it tries to send the email. That leaves an orphan unconfirmed user +
+    // a Pendiente agents row that will block any retry. Clean both up.
+    if (isSmtpFailure) {
+      try {
+        const { data: page } = await admin.auth.admin.listUsers({ page: 1, perPage: 200 })
+        const orphan = page?.users.find(u => u.email?.toLowerCase() === email)
+        if (orphan) {
+          await admin.auth.admin.deleteUser(orphan.id)
+          // agents row cascades via auth_user_id FK (on delete cascade)
+          // but it's wired through trigger insert, not FK on agents.id, so
+          // also clean the row by email in case it was inserted independently.
+          await admin.from('agents').delete().eq('email', email)
+        }
+      } catch (cleanupErr) {
+        console.error('[invite] cleanup after SMTP failure failed', cleanupErr)
+      }
+    }
+
+    let friendly = rawMsg
+    if (isDuplicate) {
+      friendly = 'Ya existe un usuario con ese email.'
+    } else if (isSmtpFailure) {
+      friendly =
+        'No se pudo enviar el email. Revisá Supabase → Logs → Auth Logs ' +
+        'para el motivo exacto. Causa más común: Resend con sender ' +
+        '"onboarding@resend.dev" solo permite enviar al email dueño de la ' +
+        'cuenta de Resend. Verificá un dominio propio en Resend para enviar ' +
+        'a cualquier dirección.'
+    }
+
     const status =
-      inviteError.status === 422 || inviteError.code === 'email_exists' ? 409 :
+      isDuplicate ? 409 :
       inviteError.status ?? 500
+
     return NextResponse.json(
-      { error: inviteError.message, code: inviteError.code },
+      { error: friendly, code: inviteError.code, raw: rawMsg },
       { status }
     )
   }
