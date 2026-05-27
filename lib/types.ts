@@ -12,7 +12,7 @@ export interface Agent {
   email: string
   role: 'Admin' | 'Senior' | 'Agente' | 'Junior'
   commission_pct: number
-  status: 'Activo' | 'Inactivo'
+  status: 'Activo' | 'Inactivo' | 'Pendiente'
   initials: string | null
   created_at: string
 }

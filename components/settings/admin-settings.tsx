@@ -114,7 +114,6 @@ function TeamTab({ agents }: { agents: Agent[] }) {
   const [inviteOk, setInviteOk] = useState(false)
   const [inviteError, setInviteError] = useState<string | null>(null)
   const [editId, setEditId] = useState<string | null>(null)
-  const supabase = createClient()
 
   function handleRoleChange(id: string, role: Agent['role']) {
     setList(l => l.map(a => a.id === id ? { ...a, role } : a))
@@ -139,35 +138,42 @@ function TeamTab({ agents }: { agents: Agent[] }) {
       setInviteError('Email inválido.')
       return
     }
-    const initials = (name.split(/\s+/).map(p => p[0] ?? '').join('').slice(0, 2) || name.slice(0, 2)).toUpperCase()
     setInviting(true)
     setInviteError(null)
-    const { data, error } = await supabase
-      .from('agents')
-      .insert({
-        name,
-        email,
-        role: invite.role,
-        initials,
+    let payload: { agent?: Agent; error?: string }
+    try {
+      const res = await fetch('/api/agents/invite', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name, email, role: invite.role }),
       })
-      .select()
-      .single()
-    setInviting(false)
-    if (error || !data) {
-      setInviteError(
-        error?.code === '23505'
-          ? 'Ya existe un agente con ese email.'
-          : `No se pudo crear: ${error?.message ?? 'error desconocido'}`
-      )
+      payload = await res.json()
+      if (!res.ok) {
+        setInviting(false)
+        setInviteError(payload.error ?? `Error ${res.status}`)
+        return
+      }
+    } catch (e) {
+      setInviting(false)
+      setInviteError(`No se pudo enviar la invitación: ${(e as Error).message}`)
       return
     }
-    setList(l => [...l, data as Agent].sort((a, b) => a.name.localeCompare(b.name)))
+    setInviting(false)
+    if (payload.agent) {
+      setList(l => {
+        const existing = l.findIndex(a => a.id === payload.agent!.id)
+        const next = existing >= 0
+          ? l.map((a, i) => (i === existing ? payload.agent! : a))
+          : [...l, payload.agent!]
+        return next.sort((a, b) => a.name.localeCompare(b.name))
+      })
+    }
     setInvite({ email: '', name: '', role: 'Agente' })
     setInviteOk(true)
     setTimeout(() => {
       setInviteOk(false)
       setInviteOpen(false)
-    }, 1500)
+    }, 1800)
   }
 
   return (
@@ -282,7 +288,14 @@ function TeamTab({ agents }: { agents: Agent[] }) {
               )}
             </div>
             <div style={{ display: 'flex', justifyContent: 'center' }}>
-              <Tag variant={agent.status === 'Activo' ? 'success' : 'default'} dot>
+              <Tag
+                variant={
+                  agent.status === 'Activo' ? 'success' :
+                  agent.status === 'Pendiente' ? 'gold' :
+                  'default'
+                }
+                dot
+              >
                 {agent.status}
               </Tag>
             </div>
@@ -295,12 +308,21 @@ function TeamTab({ agents }: { agents: Agent[] }) {
               }}>
                 {editId === agent.id ? 'Listo' : 'Editar'}
               </button>
-              <button onClick={() => handleDeactivate(agent.id)} style={{
-                padding: '5px 10px', borderRadius: 6, border: '1px solid var(--border)',
-                background: '#fff', color: agent.status === 'Activo' ? 'var(--danger)' : 'var(--success)',
-                fontSize: 11, fontWeight: 600, cursor: 'pointer',
-              }}>
-                {agent.status === 'Activo' ? 'Desactivar' : 'Activar'}
+              <button
+                onClick={() => handleDeactivate(agent.id)}
+                disabled={agent.status === 'Pendiente'}
+                title={agent.status === 'Pendiente' ? 'Esperando que el agente acepte la invitación' : undefined}
+                style={{
+                  padding: '5px 10px', borderRadius: 6, border: '1px solid var(--border)',
+                  background: '#fff',
+                  color: agent.status === 'Pendiente' ? 'var(--ink-3)'
+                    : agent.status === 'Activo' ? 'var(--danger)' : 'var(--success)',
+                  fontSize: 11, fontWeight: 600,
+                  cursor: agent.status === 'Pendiente' ? 'not-allowed' : 'pointer',
+                  opacity: agent.status === 'Pendiente' ? 0.5 : 1,
+                }}
+              >
+                {agent.status === 'Activo' ? 'Desactivar' : agent.status === 'Pendiente' ? 'Pendiente' : 'Activar'}
               </button>
             </div>
           </div>
