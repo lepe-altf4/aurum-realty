@@ -88,7 +88,7 @@ create table if not exists organization (
 );
 
 insert into organization (name, cuit, address, dollar_rate)
-values ('Aurum Realty S.A.', '30-71204938-2', 'Av. Alvear 1780, CABA', 1245)
+values ('Soules Inmobiliaria', '30-71204938-2', '9 de Julio 376, Cipolletti, Río Negro', 1245)
 on conflict do nothing;
 
 -- ──────────────────────────────────────────────────────────────

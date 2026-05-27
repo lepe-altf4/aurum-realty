@@ -360,6 +360,32 @@ function buildLeads(propIds, stageIds, agentIds) {
 async function main() {
   console.log('\n🏠 Soules Inmobiliaria — Cargando datos de demo\n')
 
+  // 0. Update organization info
+  process.stdout.write('  → Actualizando organización... ')
+  const [existingOrg] = await api('/organization?select=id&limit=1')
+  if (existingOrg) {
+    await api(`/organization?id=eq.${existingOrg.id}`, {
+      method: 'PATCH',
+      headers: { Prefer: 'return=minimal' },
+      body: JSON.stringify({
+        name: 'Soules Inmobiliaria',
+        address: '9 de Julio 376, Cipolletti, Río Negro',
+      }),
+    })
+  } else {
+    await api('/organization', {
+      method: 'POST',
+      headers: { Prefer: 'return=minimal' },
+      body: JSON.stringify({
+        name: 'Soules Inmobiliaria',
+        cuit: '30-71204938-2',
+        address: '9 de Julio 376, Cipolletti, Río Negro',
+        dollar_rate: 1245,
+      }),
+    })
+  }
+  console.log('✓')
+
   // 1. Delete existing leads first (activities cascade)
   process.stdout.write('  → Borrando leads existentes... ')
   await api('/leads?created_at=gte.2000-01-01', {

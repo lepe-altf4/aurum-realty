@@ -67,7 +67,7 @@ create policy "Auth delete activities" on activities   for delete using (auth.ro
 -- 2. Organization — ensure exists
 -- ──────────────────────────────────────────────────────────────
 insert into organization (name, cuit, address, dollar_rate)
-select 'Aurum Realty S.A.', '30-71204938-2', 'Av. Alvear 1780, CABA', 1245
+select 'Soules Inmobiliaria', '30-71204938-2', '9 de Julio 376, Cipolletti, Río Negro', 1245
 where not exists (select 1 from organization);
 
 -- ──────────────────────────────────────────────────────────────

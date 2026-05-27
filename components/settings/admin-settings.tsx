@@ -110,7 +110,11 @@ function TeamTab({ agents }: { agents: Agent[] }) {
   const [list, setList] = useState<Agent[]>(agents)
   const [inviteOpen, setInviteOpen] = useState(false)
   const [invite, setInvite] = useState({ email: '', name: '', role: 'Agente' })
+  const [inviting, setInviting] = useState(false)
+  const [inviteOk, setInviteOk] = useState(false)
+  const [inviteError, setInviteError] = useState<string | null>(null)
   const [editId, setEditId] = useState<string | null>(null)
+  const supabase = createClient()
 
   function handleRoleChange(id: string, role: Agent['role']) {
     setList(l => l.map(a => a.id === id ? { ...a, role } : a))
@@ -122,6 +126,48 @@ function TeamTab({ agents }: { agents: Agent[] }) {
 
   function handleDeactivate(id: string) {
     setList(l => l.map(a => a.id === id ? { ...a, status: a.status === 'Activo' ? 'Inactivo' : 'Activo' } : a))
+  }
+
+  async function handleInvite() {
+    const name = invite.name.trim()
+    const email = invite.email.trim().toLowerCase()
+    if (!name || !email) {
+      setInviteError('Nombre y email son obligatorios.')
+      return
+    }
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+      setInviteError('Email inválido.')
+      return
+    }
+    const initials = (name.split(/\s+/).map(p => p[0] ?? '').join('').slice(0, 2) || name.slice(0, 2)).toUpperCase()
+    setInviting(true)
+    setInviteError(null)
+    const { data, error } = await supabase
+      .from('agents')
+      .insert({
+        name,
+        email,
+        role: invite.role,
+        initials,
+      })
+      .select()
+      .single()
+    setInviting(false)
+    if (error || !data) {
+      setInviteError(
+        error?.code === '23505'
+          ? 'Ya existe un agente con ese email.'
+          : `No se pudo crear: ${error?.message ?? 'error desconocido'}`
+      )
+      return
+    }
+    setList(l => [...l, data as Agent].sort((a, b) => a.name.localeCompare(b.name)))
+    setInvite({ email: '', name: '', role: 'Agente' })
+    setInviteOk(true)
+    setTimeout(() => {
+      setInviteOk(false)
+      setInviteOpen(false)
+    }, 1500)
   }
 
   return (
@@ -138,28 +184,45 @@ function TeamTab({ agents }: { agents: Agent[] }) {
       {inviteOpen && (
         <div style={{
           background: 'var(--surface)', borderRadius: 'var(--radius-lg)', padding: 20,
-          border: '1px solid var(--border)', display: 'grid', gridTemplateColumns: '1fr 1fr 1fr auto', gap: 12, alignItems: 'flex-end',
+          border: '1px solid var(--border)', display: 'flex', flexDirection: 'column', gap: 10,
         }}>
-          <FormField label="Nombre">
-            <input style={inputStyle} value={invite.name} onChange={e => setInvite(i => ({ ...i, name: e.target.value }))} placeholder="Ana García" />
-          </FormField>
-          <FormField label="Email">
-            <input style={inputStyle} type="email" value={invite.email} onChange={e => setInvite(i => ({ ...i, email: e.target.value }))} placeholder="ana@inmobiliaria.com" />
-          </FormField>
-          <FormField label="Rol">
-            <select style={selectStyle} value={invite.role} onChange={e => setInvite(i => ({ ...i, role: e.target.value }))}>
-              <option>Admin</option>
-              <option>Senior</option>
-              <option>Agente</option>
-              <option>Junior</option>
-            </select>
-          </FormField>
-          <button style={{
-            padding: '9px 18px', borderRadius: 8, border: 0,
-            background: 'var(--gold)', color: '#fff', fontSize: 13, fontWeight: 600, cursor: 'pointer',
+          <div style={{
+            display: 'grid', gridTemplateColumns: '1fr 1fr 1fr auto', gap: 12, alignItems: 'flex-end',
           }}>
-            Enviar invitación
-          </button>
+            <FormField label="Nombre">
+              <input style={inputStyle} value={invite.name} onChange={e => setInvite(i => ({ ...i, name: e.target.value }))} placeholder="Ana García" />
+            </FormField>
+            <FormField label="Email">
+              <input style={inputStyle} type="email" value={invite.email} onChange={e => setInvite(i => ({ ...i, email: e.target.value }))} placeholder="ana@inmobiliaria.com" />
+            </FormField>
+            <FormField label="Rol">
+              <select style={selectStyle} value={invite.role} onChange={e => setInvite(i => ({ ...i, role: e.target.value }))}>
+                <option>Admin</option>
+                <option>Senior</option>
+                <option>Agente</option>
+                <option>Junior</option>
+              </select>
+            </FormField>
+            <button
+              onClick={handleInvite}
+              disabled={inviting || inviteOk}
+              style={{
+                padding: '9px 18px', borderRadius: 8, border: 0,
+                background: inviteOk ? 'var(--success)' : 'var(--gold)', color: '#fff',
+                fontSize: 13, fontWeight: 600,
+                cursor: inviting ? 'wait' : inviteOk ? 'default' : 'pointer',
+                opacity: inviting ? 0.7 : 1, transition: 'background 0.2s',
+              }}
+            >
+              {inviting ? 'Enviando…' : inviteOk ? '✓ Invitación enviada' : 'Enviar invitación'}
+            </button>
+          </div>
+          {inviteError && (
+            <div style={{
+              padding: '8px 12px', borderRadius: 8, background: '#FBEAEA',
+              border: '1px solid #E5B4B4', color: 'var(--danger)', fontSize: 12,
+            }}>{inviteError}</div>
+          )}
         </div>
       )}
 
