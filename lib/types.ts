@@ -44,6 +44,17 @@ export interface Property {
   description: string | null
   photo_url: string | null
   created_at: string
+  // joined / cliente
+  photos?: PropertyPhoto[]
+}
+
+export interface PropertyPhoto {
+  id: string
+  property_id: string
+  url: string
+  storage_path: string | null
+  position: number
+  created_at: string
 }
 
 export interface Lead {
