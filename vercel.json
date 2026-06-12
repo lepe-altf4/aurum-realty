@@ -1,6 +1,7 @@
 {
   "framework": "nextjs",
   "crons": [
-    { "path": "/api/dollar/refresh", "schedule": "0 12 * * *" }
+    { "path": "/api/dollar/refresh", "schedule": "0 12 * * *" },
+    { "path": "/api/leads/refresh-contact", "schedule": "30 7 * * *" }
   ]
 }

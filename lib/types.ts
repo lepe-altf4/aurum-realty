@@ -63,6 +63,7 @@ export interface Lead {
   hot: boolean
   score: number
   days_without_contact: number
+  last_contact_at?: string | null
   next_action_date: string | null
   notes: string | null
   created_at: string

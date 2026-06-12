@@ -48,7 +48,11 @@ export default function LeadDrawer({ lead, stages, onClose, onMove, onUpdate }: 
       .insert({ lead_id: lead.id, agent_id: agent?.id ?? null, type: 'Nota', description: text })
       .select('*, agent:agents(*)')
       .single()
-    if (newActivity) setActivities(prev => [newActivity, ...prev])
+    if (newActivity) {
+      setActivities(prev => [newActivity, ...prev])
+      // El trigger en la base ya reseteó el contador; reflejarlo al instante
+      onUpdate({ ...lead, days_without_contact: 0, last_contact_at: newActivity.created_at })
+    }
     setNote('')
     setSubmitting(false)
   }
@@ -65,7 +69,7 @@ export default function LeadDrawer({ lead, stages, onClose, onMove, onUpdate }: 
         type: 'Cambio_etapa', description: `Lead movido a etapa ${stage.name}`,
       })
     }
-    const updated = { ...lead, stage_id: stage.id, stage }
+    const updated = { ...lead, stage_id: stage.id, stage, days_without_contact: 0, last_contact_at: new Date().toISOString() }
     onUpdate(updated)
   }
 
@@ -82,7 +86,7 @@ export default function LeadDrawer({ lead, stages, onClose, onMove, onUpdate }: 
         type: 'Visita', description: `Visita agendada para ${new Date(dateTime).toLocaleDateString('es-AR', { day: '2-digit', month: 'short', year: 'numeric' })} ${scheduleTime}`,
       })
     }
-    const updated = { ...lead, next_action_date: dateTime }
+    const updated = { ...lead, next_action_date: dateTime, days_without_contact: 0, last_contact_at: new Date().toISOString() }
     onUpdate(updated)
     setShowSchedule(false)
     setSavingSchedule(false)
