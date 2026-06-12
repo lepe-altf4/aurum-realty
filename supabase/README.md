@@ -1,60 +1,56 @@
 # Aurum Realty — Supabase Setup
 
-## Running the migrations
+Cliente actual cargado: **Unnique Negocios Inmobiliarios** (Neuquén Capital).
 
-Open Supabase → **SQL Editor** → New query. Run these in order:
+## Orden canónico de scripts (SQL Editor)
 
-### 1. `migrations/001_initial.sql`
-Creates schema, triggers, RLS policies, and initial seed.
-**Now fully idempotent** — safe to re-run; uses `drop policy if exists` and exception handlers for realtime.
+Para una base nueva, correr **en este orden**. Todos son idempotentes
+(se pueden re-correr sin romper nada):
 
-### 2. `migrations/002_reseed.sql`
-**Run this if leads or properties aren't showing up.**
-- Re-creates all RLS policies (drop + create)
-- Re-inserts the 12 demo properties, 5 demo agents, 12 demo leads — only if missing
-- Ends with a verification query — you should see:
-  ```
-  orgs=1, stages=5, agents=5+, properties=12, leads=12, activities=5
-  ```
+| # | Archivo | Qué hace |
+|---|---------|----------|
+| 1 | `migrations/001_initial.sql` | Esquema base, triggers, RLS inicial |
+| 2 | `policies_leads.sql` | Propiedad de leads (owner/pozo/claims), RPCs, RLS real, columnas de dólar |
+| 3 | `migrations/004_days_sin_contacto.sql` | `days_without_contact` derivado de actividad real (trigger + recálculo) |
+| 4 | `migrations/005_equipo_admin_only.sql` | Escrituras sobre `agents` solo Admin |
+| 5 | `migrations/006_seed_unnique.sql` | Datos de demo de Unnique (org, equipo, 20 propiedades, 11 leads) |
+| 6 | `migrations/007_property_photos.sql` | Galería multi-foto (`property_photos`, portada cacheada en `photo_url`) |
+| 7 | `storage_property_photos.sql` | Bucket `property-photos` + policies de Storage |
+| 8 | `migrations/008_hardening_e_indices.sql` | Stages/org/activities-delete solo Admin + índices |
 
-Both files are safe to run multiple times.
+> `migrations/002_reseed.sql` es legacy (demo vieja); no correr en bases nuevas.
+> Cada script termina con una query de **verificación** — revisá su output.
 
-## Troubleshooting "no data appearing"
-
-If you logged in successfully but `/leads` and `/properties` are empty:
-
-1. **Check seed actually inserted.** In Supabase → SQL Editor:
-   ```sql
-   select count(*) from leads;
-   select count(*) from properties;
-   ```
-   If either is 0, run `002_reseed.sql`.
-
-2. **Check RLS isn't blocking.** Same editor, run as the *authenticated user* (use Supabase's "Run as user" or just open the table editor — if you can see rows there, RLS is fine for service role; the app uses anon key + user JWT).
-   - All policies require `auth.role() = 'authenticated'`. If your app session is valid, the JWT will satisfy this.
-   - If you accidentally lost the policies during a partial migration, `002_reseed.sql` re-creates them.
-
-3. **Check env vars on Vercel.** Project Settings → Environment Variables:
-   - `NEXT_PUBLIC_SUPABASE_URL`
-   - `NEXT_PUBLIC_SUPABASE_ANON_KEY`
-   - `SUPABASE_SERVICE_ROLE_KEY`
-   Redeploy after adding/changing them.
-
-## Environment variables (`.env.local`)
+## Env vars (Vercel → Project Settings → Environment Variables)
 
 ```
-NEXT_PUBLIC_SUPABASE_URL=https://your-project.supabase.co
-NEXT_PUBLIC_SUPABASE_ANON_KEY=your-anon-key
-SUPABASE_SERVICE_ROLE_KEY=your-service-role-key
+NEXT_PUBLIC_SUPABASE_URL=https://<project>.supabase.co
+NEXT_PUBLIC_SUPABASE_ANON_KEY=<anon key (legacy JWT)>
+SUPABASE_SERVICE_ROLE_KEY=<service role key (legacy JWT, empieza con eyJ...)>
+CRON_SECRET=<opcional: protege los endpoints de cron>
 ```
 
-## Dollar rate
+Nota: están marcadas *sensitive* en Vercel — `vercel env pull` las baja vacías;
+solo el runtime las ve.
 
-The `organization` table has a `dollar_rate` column (default: 1245 ARS/USD).
-The Executive Dashboard reads this to convert USD ↔ ARS.
-Update it via **Admin Settings → Cotización dólar**.
+## Emails de invitación
 
-## Admin user
+- Plantilla: `docs/supabase-invite-email-template.html` → pegar en
+  Supabase → Authentication → Emails → Templates → **Invite user**.
+- La URL de redirección `/bienvenida` debe estar permitida en
+  Supabase → Authentication → URL Configuration → **Redirect URLs**
+  (ej: `https://tu-dominio.vercel.app/bienvenida`).
+- Si el SMTP no está configurado (o Resend sin dominio verificado), la app
+  igual genera un **link de invitación copiable** para mandar por WhatsApp.
 
-The user `lepemate1310@gmail.com` is auto-assigned the `Admin` role on signup
-(via `handle_new_agent()` trigger). All other signups default to `Agente`.
+## Dólar
+
+`organization.dollar_rate` es el valor efectivo. `dollar_rate_source`:
+`auto` (cron diario + refresh al abrir dashboard si +6 hs, dolarapi.com blue)
+o `manual` (override del Admin, el cron no lo pisa).
+
+## Admin
+
+`lepemate1310@gmail.com` recibe rol `Admin` automáticamente al registrarse
+(trigger `handle_new_agent()`). El resto entra como `Agente` o con el rol
+elegido al invitarlo.

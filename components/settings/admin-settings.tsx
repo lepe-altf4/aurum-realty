@@ -194,6 +194,9 @@ function TeamTab({ agents }: { agents: Agent[] }) {
   const [inviting, setInviting] = useState(false)
   const [inviteOk, setInviteOk] = useState(false)
   const [inviteError, setInviteError] = useState<string | null>(null)
+  const [inviteLink, setInviteLink] = useState<string | null>(null)
+  const [inviteNotice, setInviteNotice] = useState<string | null>(null)
+  const [linkCopied, setLinkCopied] = useState(false)
   const [editId, setEditId] = useState<string | null>(null)
   const [editSnapshot, setEditSnapshot] = useState<Agent | null>(null)
   const [savingId, setSavingId] = useState<string | null>(null)
@@ -267,7 +270,9 @@ function TeamTab({ agents }: { agents: Agent[] }) {
     }
     setInviting(true)
     setInviteError(null)
-    let payload: { agent?: Agent; error?: string }
+    setInviteLink(null)
+    setInviteNotice(null)
+    let payload: { agent?: Agent; error?: string; emailed?: boolean; invite_link?: string | null; notice?: string | null }
     try {
       const res = await fetch('/api/agents/invite', {
         method: 'POST',
@@ -296,11 +301,26 @@ function TeamTab({ agents }: { agents: Agent[] }) {
       })
     }
     setInvite({ email: '', name: '', role: 'Agente' })
-    setInviteOk(true)
-    setTimeout(() => {
-      setInviteOk(false)
-      setInviteOpen(false)
-    }, 1800)
+
+    if (payload.invite_link) {
+      // El email no salió (o era reenvío): mostrar el link para mandarlo a mano.
+      setInviteLink(payload.invite_link)
+      setInviteNotice(payload.notice ?? 'Copiá el link y mandáselo al agente.')
+    } else {
+      setInviteOk(true)
+      setTimeout(() => {
+        setInviteOk(false)
+        setInviteOpen(false)
+      }, 1800)
+    }
+  }
+
+  function copyInviteLink() {
+    if (!inviteLink) return
+    navigator.clipboard.writeText(inviteLink).then(() => {
+      setLinkCopied(true)
+      setTimeout(() => setLinkCopied(false), 2000)
+    })
   }
 
   return (
@@ -355,6 +375,47 @@ function TeamTab({ agents }: { agents: Agent[] }) {
               padding: '8px 12px', borderRadius: 8, background: '#FBEAEA',
               border: '1px solid #E5B4B4', color: 'var(--danger)', fontSize: 12,
             }}>{inviteError}</div>
+          )}
+
+          {inviteLink && (
+            <div style={{
+              padding: '12px 14px', borderRadius: 8, background: 'var(--gold-soft)',
+              border: '1px solid #E2D4B5', display: 'flex', flexDirection: 'column', gap: 8,
+            }}>
+              <div style={{ fontSize: 12, fontWeight: 600, color: '#6E5630' }}>
+                {inviteNotice}
+              </div>
+              <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
+                <div style={{
+                  flex: 1, minWidth: 200, padding: '8px 10px', borderRadius: 6,
+                  border: '1px solid #E2D4B5', background: '#fff', fontSize: 11,
+                  fontFamily: 'var(--font-mono)', color: 'var(--ink-2)',
+                  overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+                }}>
+                  {inviteLink}
+                </div>
+                <button onClick={copyInviteLink} style={{
+                  padding: '8px 14px', borderRadius: 6, border: '1px solid #E2D4B5',
+                  background: linkCopied ? 'var(--success)' : 'var(--ink)', color: '#fff',
+                  fontSize: 12, fontWeight: 600, cursor: 'pointer', flexShrink: 0, transition: 'background .2s',
+                }}>
+                  {linkCopied ? '✓ Copiado' : 'Copiar link'}
+                </button>
+                <a
+                  href={`https://wa.me/?text=${encodeURIComponent(`Te invito al CRM de Unnique. Entrá con este link y creá tu contraseña: ${inviteLink}`)}`}
+                  target="_blank" rel="noreferrer"
+                  style={{
+                    padding: '8px 14px', borderRadius: 6, border: 'none',
+                    background: 'var(--success)', color: '#fff', fontSize: 12, fontWeight: 600,
+                    textDecoration: 'none', flexShrink: 0,
+                  }}>
+                  WhatsApp
+                </a>
+              </div>
+              <div style={{ fontSize: 11, color: '#8E6840' }}>
+                El link expira en 24 hs. Si vence, invitá de nuevo al mismo email y se regenera.
+              </div>
+            </div>
           )}
         </div>
       )}

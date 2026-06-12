@@ -24,9 +24,12 @@ export async function middleware(request: NextRequest) {
   const { data: { user } } = await supabase.auth.getUser()
   const { pathname } = request.nextUrl
   const isAuthPage = pathname.startsWith('/login') || pathname.startsWith('/register')
+  // /bienvenida recibe los tokens de la invitación en el hash (#access_token),
+  // que el servidor no ve: tiene que ser accesible sin sesión y sin redirect.
+  const isInvitePage = pathname.startsWith('/bienvenida')
   const isApiRoute = pathname.startsWith('/api/')
 
-  if (!user && !isAuthPage && !isApiRoute) {
+  if (!user && !isAuthPage && !isInvitePage && !isApiRoute) {
     const url = request.nextUrl.clone()
     url.pathname = '/login'
     return NextResponse.redirect(url)
