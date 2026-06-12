@@ -195,6 +195,9 @@ function TeamTab({ agents }: { agents: Agent[] }) {
   const [inviteOk, setInviteOk] = useState(false)
   const [inviteError, setInviteError] = useState<string | null>(null)
   const [editId, setEditId] = useState<string | null>(null)
+  const [editSnapshot, setEditSnapshot] = useState<Agent | null>(null)
+  const [savingId, setSavingId] = useState<string | null>(null)
+  const [teamError, setTeamError] = useState<string | null>(null)
 
   function handleRoleChange(id: string, role: Agent['role']) {
     setList(l => l.map(a => a.id === id ? { ...a, role } : a))
@@ -204,8 +207,51 @@ function TeamTab({ agents }: { agents: Agent[] }) {
     setList(l => l.map(a => a.id === id ? { ...a, commission_pct: parseFloat(v) || 0 } : a))
   }
 
-  function handleDeactivate(id: string) {
-    setList(l => l.map(a => a.id === id ? { ...a, status: a.status === 'Activo' ? 'Inactivo' : 'Activo' } : a))
+  async function persistAgent(id: string, payload: { role?: Agent['role']; commission_pct?: number; status?: Agent['status'] }): Promise<Agent | null> {
+    setSavingId(id)
+    setTeamError(null)
+    try {
+      const res = await fetch('/api/agents/update', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id, ...payload }),
+      })
+      const data = await res.json()
+      if (!res.ok) {
+        setTeamError(data.error ?? `Error ${res.status}`)
+        return null
+      }
+      return data.agent as Agent
+    } catch (e) {
+      setTeamError(`No se pudo guardar: ${(e as Error).message}`)
+      return null
+    } finally {
+      setSavingId(null)
+    }
+  }
+
+  function startEdit(agent: Agent) {
+    setEditSnapshot(agent)
+    setEditId(agent.id)
+    setTeamError(null)
+  }
+
+  async function finishEdit(agent: Agent) {
+    const saved = await persistAgent(agent.id, { role: agent.role, commission_pct: agent.commission_pct })
+    if (saved) {
+      setList(l => l.map(a => a.id === agent.id ? saved : a))
+      setEditId(null)
+      setEditSnapshot(null)
+    } else if (editSnapshot) {
+      // Falló el guardado: volver a los valores reales de la base
+      setList(l => l.map(a => a.id === agent.id ? editSnapshot : a))
+    }
+  }
+
+  async function handleDeactivate(agent: Agent) {
+    const next = agent.status === 'Activo' ? 'Inactivo' : 'Activo'
+    const saved = await persistAgent(agent.id, { status: next })
+    if (saved) setList(l => l.map(a => a.id === agent.id ? saved : a))
   }
 
   async function handleInvite() {
@@ -313,6 +359,13 @@ function TeamTab({ agents }: { agents: Agent[] }) {
         </div>
       )}
 
+      {teamError && (
+        <div style={{
+          padding: '8px 12px', borderRadius: 8, background: '#FBEAEA',
+          border: '1px solid #E5B4B4', color: 'var(--danger)', fontSize: 12,
+        }}>{teamError}</div>
+      )}
+
       <div style={{ border: '1px solid var(--border)', borderRadius: 'var(--radius-lg)', overflow: 'hidden', background: '#fff' }}>
         <div style={{
           display: 'grid', gridTemplateColumns: '1fr 160px 120px 80px 90px 100px',
@@ -381,17 +434,22 @@ function TeamTab({ agents }: { agents: Agent[] }) {
               </Tag>
             </div>
             <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 6 }}>
-              <button onClick={() => setEditId(editId === agent.id ? null : agent.id)} style={{
-                padding: '5px 10px', borderRadius: 6, border: '1px solid var(--border)',
-                background: editId === agent.id ? 'var(--ink)' : '#fff',
-                color: editId === agent.id ? '#fff' : 'var(--ink-2)',
-                fontSize: 11, fontWeight: 600, cursor: 'pointer',
-              }}>
-                {editId === agent.id ? 'Listo' : 'Editar'}
+              <button
+                onClick={() => editId === agent.id ? finishEdit(agent) : startEdit(agent)}
+                disabled={savingId === agent.id}
+                style={{
+                  padding: '5px 10px', borderRadius: 6, border: '1px solid var(--border)',
+                  background: editId === agent.id ? 'var(--ink)' : '#fff',
+                  color: editId === agent.id ? '#fff' : 'var(--ink-2)',
+                  fontSize: 11, fontWeight: 600,
+                  cursor: savingId === agent.id ? 'wait' : 'pointer',
+                  opacity: savingId === agent.id ? 0.7 : 1,
+                }}>
+                {savingId === agent.id && editId === agent.id ? 'Guardando…' : editId === agent.id ? 'Guardar' : 'Editar'}
               </button>
               <button
-                onClick={() => handleDeactivate(agent.id)}
-                disabled={agent.status === 'Pendiente'}
+                onClick={() => handleDeactivate(agent)}
+                disabled={agent.status === 'Pendiente' || savingId === agent.id}
                 title={agent.status === 'Pendiente' ? 'Esperando que el agente acepte la invitación' : undefined}
                 style={{
                   padding: '5px 10px', borderRadius: 6, border: '1px solid var(--border)',
@@ -399,8 +457,8 @@ function TeamTab({ agents }: { agents: Agent[] }) {
                   color: agent.status === 'Pendiente' ? 'var(--ink-3)'
                     : agent.status === 'Activo' ? 'var(--danger)' : 'var(--success)',
                   fontSize: 11, fontWeight: 600,
-                  cursor: agent.status === 'Pendiente' ? 'not-allowed' : 'pointer',
-                  opacity: agent.status === 'Pendiente' ? 0.5 : 1,
+                  cursor: agent.status === 'Pendiente' ? 'not-allowed' : savingId === agent.id ? 'wait' : 'pointer',
+                  opacity: agent.status === 'Pendiente' || savingId === agent.id ? 0.5 : 1,
                 }}
               >
                 {agent.status === 'Activo' ? 'Desactivar' : agent.status === 'Pendiente' ? 'Pendiente' : 'Activar'}
