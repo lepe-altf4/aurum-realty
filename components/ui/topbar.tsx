@@ -9,7 +9,7 @@ export default function Topbar({
   search?: boolean
 }) {
   return (
-    <div style={{
+    <div className="topbar" style={{
       display: 'flex', alignItems: 'center', gap: 16,
       padding: '16px 32px', borderBottom: '1px solid var(--border)',
       background: 'var(--bg)', position: 'sticky', top: 0, zIndex: 30,
@@ -20,7 +20,7 @@ export default function Topbar({
       </div>
       <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 10 }}>
         {search && (
-          <div style={{
+          <div className="topbar-search" style={{
             display: 'flex', alignItems: 'center', gap: 8,
             background: 'var(--surface)', border: '1px solid transparent',
             borderRadius: 'var(--radius)', padding: '8px 12px', minWidth: 280,

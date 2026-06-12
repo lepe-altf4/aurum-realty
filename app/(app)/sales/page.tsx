@@ -1,19 +1,11 @@
-import { createAdminClient } from '@/lib/supabase/admin'
+import { createClient } from '@/lib/supabase/server'
 import SalesPanel from '@/components/sales/sales-panel'
 
+export const dynamic = 'force-dynamic'
+
 export default async function SalesPage() {
-  let supabase
-  try {
-    supabase = createAdminClient()
-  } catch (err: unknown) {
-    const msg = err instanceof Error ? err.message : String(err)
-    return (
-      <div className="p-8 text-red-600">
-        <h2 className="text-xl font-bold mb-2">Configuration Error</h2>
-        <p className="font-mono text-sm">{msg}</p>
-      </div>
-    )
-  }
+  // Sesión del usuario: RLS limita los leads visibles según rol/dueño.
+  const supabase = await createClient()
 
   const [leadsRes, stagesRes, agentsRes] = await Promise.all([
     supabase

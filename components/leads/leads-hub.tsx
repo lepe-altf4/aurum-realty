@@ -122,12 +122,15 @@ function ReactivationModal({ leads, onClose, onOpenLead }: { leads: Lead[]; onCl
   )
 }
 
-export default function LeadsHub({ initialLeads, stages, agents }: {
+export default function LeadsHub({ initialLeads, stages, agents, viewer = null, isAdmin = false }: {
   initialLeads: Lead[]
   stages: PipelineStage[]
   agents: Agent[]
+  viewer?: Agent | null
+  isAdmin?: boolean
 }) {
   const [leads, setLeads] = useState<Lead[]>(initialLeads)
+  const [ownerFilter, setOwnerFilter] = useState<string>('todos')
   const [opFilter, setOpFilter] = useState<string>('Todas')
   const [originFilter, setOriginFilter] = useState<string>('Todos')
   const [stageFilter, setStageFilter] = useState<string>('Todas')
@@ -170,6 +173,11 @@ export default function LeadsHub({ initialLeads, stages, agents }: {
   const filtered = useMemo(() => {
     let base = leads
 
+    // Admin: filtrar por dueño del lead
+    if (isAdmin && ownerFilter !== 'todos') {
+      base = base.filter(l => (l.owner_id ?? l.agent_id) === ownerFilter)
+    }
+
     // Apply saved view filter first
     if (savedView === 'premium') {
       base = base.filter(l => l.hot || (l.currency === 'USD' && (l.amount ?? 0) > 100000))
@@ -187,7 +195,7 @@ export default function LeadsHub({ initialLeads, stages, agents }: {
       (originFilter === 'Todos' || l.origin === originFilter) &&
       (stageFilter === 'Todas' || l.stage?.key === stageFilter)
     )
-  }, [leads, opFilter, originFilter, stageFilter, savedView])
+  }, [leads, opFilter, originFilter, stageFilter, savedView, isAdmin, ownerFilter])
 
   const stats = useMemo(() => ({
     active: leads.length,
@@ -230,7 +238,7 @@ export default function LeadsHub({ initialLeads, stages, agents }: {
     <>
       <Topbar
         crumb="WORKSPACE · LEADS"
-        title="Leads Hub"
+        title="Mis Leads"
         search={false}
         right={
           <div style={{ display: 'flex', gap: 8 }}>
@@ -246,12 +254,12 @@ export default function LeadsHub({ initialLeads, stages, agents }: {
         }
       />
 
-      <div style={{ padding: '24px 32px 48px' }}>
+      <div className="page-pad" style={{ padding: '24px 32px 48px' }}>
 
         {/* ── Saved Views ── */}
         <div style={{ marginBottom: 20 }}>
           <div style={{ fontSize: 10.5, fontWeight: 600, color: 'var(--ink-3)', letterSpacing: '0.12em', textTransform: 'uppercase', marginBottom: 10 }}>Vistas guardadas</div>
-          <div style={{ display: 'flex', gap: 10 }}>
+          <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
             {SAVED_VIEWS.map(v => {
               const isActive = savedView === v.key
               return (
@@ -323,7 +331,7 @@ export default function LeadsHub({ initialLeads, stages, agents }: {
         )}
 
         {savedView === 'centro-sp' && (
-          <div style={{ marginBottom: 16, display: 'grid', gridTemplateColumns: '1fr 320px', gap: 16 }}>
+          <div className="grid-2col-resp" style={{ marginBottom: 16, display: 'grid', gridTemplateColumns: '1fr 320px', gap: 16 }}>
             <div style={{ padding: '14px 20px', borderRadius: 'var(--radius)', background: 'var(--surface)', border: '1px solid var(--border)', display: 'flex', alignItems: 'center', gap: 12 }}>
               <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="var(--ink-2)" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M20 10c0 6-8 12-8 12S4 16 4 10a8 8 0 1 1 16 0z"/><circle cx="12" cy="10" r="3"/></svg>
               <div>
@@ -355,8 +363,8 @@ export default function LeadsHub({ initialLeads, stages, agents }: {
         )}
 
         {/* Summary strip */}
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5,1fr)', gap: 14, marginBottom: 18 }}>
-          <SummaryStat label="Leads activos"   value={stats.active}  sub="total en sistema" />
+        <div className="stat-grid-5" style={{ display: 'grid', gridTemplateColumns: 'repeat(5,1fr)', gap: 14, marginBottom: 18 }}>
+          <SummaryStat label="Leads activos"   value={stats.active}  sub={isAdmin ? 'asignados en el equipo' : 'asignados a vos'} />
           <SummaryStat label="Nuevos hoy"      value={leads.filter(l => new Date(l.created_at).toDateString() === new Date().toDateString()).length} sub="ingresados hoy" />
           <SummaryStat label="Sin acción 72hs" value={stats.noAction} sub="requieren follow-up" color="var(--gold)" />
           <SummaryStat label="Atrasados"       value={stats.overdue}  sub="sin contacto +5d"    color="var(--danger)" />
@@ -368,6 +376,22 @@ export default function LeadsHub({ initialLeads, stages, agents }: {
           {/* Filter bar */}
           <div style={{ padding: '14px 18px', borderBottom: '1px solid var(--border)', display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
             <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" style={{ color: 'var(--ink-3)' }}><path d="M3 5h18l-7 9v6l-4-2v-4z"/></svg>
+
+            {isAdmin && (
+              <>
+                <span style={{ fontSize: 10.5, textTransform: 'uppercase', letterSpacing: '0.12em', color: 'var(--ink-3)', fontWeight: 600 }}>Agente</span>
+                <select value={ownerFilter} onChange={e => setOwnerFilter(e.target.value)} style={{
+                  padding: '7px 24px 7px 11px', borderRadius: 8, border: '1px solid var(--border)',
+                  background: ownerFilter !== 'todos' ? 'var(--ink)' : '#fff',
+                  color: ownerFilter !== 'todos' ? '#fff' : 'var(--ink-2)',
+                  fontSize: 12.5, fontWeight: 500, cursor: 'pointer', appearance: 'none', fontFamily: 'inherit',
+                }}>
+                  <option value="todos">Todos los agentes</option>
+                  {agents.map(a => <option key={a.id} value={a.id}>{a.name}</option>)}
+                </select>
+                <div style={{ width: 1, height: 22, background: 'var(--border)', margin: '0 4px' }} />
+              </>
+            )}
 
             <span style={{ fontSize: 10.5, textTransform: 'uppercase', letterSpacing: '0.12em', color: 'var(--ink-3)', fontWeight: 600 }}>Operación</span>
             {['Todas','Venta','Alquiler'].map(o => (
@@ -542,6 +566,8 @@ export default function LeadsHub({ initialLeads, stages, agents }: {
         <NewLeadModal
           stages={stages}
           agents={agents}
+          viewer={viewer}
+          isAdmin={isAdmin}
           onClose={() => setShowNewLead(false)}
           onCreated={handleLeadCreated}
         />

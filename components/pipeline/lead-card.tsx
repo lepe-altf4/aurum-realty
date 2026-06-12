@@ -4,7 +4,7 @@ import { CSS } from '@dnd-kit/utilities'
 import { fmtPrice } from '@/lib/format'
 import type { Lead } from '@/lib/types'
 
-export default function LeadCard({ lead, isDragging = false }: { lead: Lead; isDragging?: boolean }) {
+export default function LeadCard({ lead, isDragging = false, dollarRate = 0 }: { lead: Lead; isDragging?: boolean; dollarRate?: number }) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging: isSortableDragging } = useSortable({ id: lead.id })
 
   const style = {
@@ -18,6 +18,13 @@ export default function LeadCard({ lead, isDragging = false }: { lead: Lead; isD
     lead.property.currency_listing,
     lead.property.operation
   ) : null
+
+  // Conversión con la cotización vigente de la organización
+  const altPrice = (lead.property && dollarRate > 0)
+    ? lead.property.currency_listing === 'USD'
+      ? (lead.property.price_usd ? `≈ $ ${Math.round(lead.property.price_usd * dollarRate).toLocaleString('es-AR')}` : null)
+      : (lead.property.price_ars ? `≈ USD ${Math.round(lead.property.price_ars / dollarRate).toLocaleString('es-AR')}` : null)
+    : null
 
   return (
     <div
@@ -61,7 +68,12 @@ export default function LeadCard({ lead, isDragging = false }: { lead: Lead; isD
         )}
 
         <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 10, alignItems: 'center' }}>
-          {price && <span style={{ fontSize: 12, fontWeight: 700, color: 'var(--ink)', fontVariantNumeric: 'tabular-nums' }}>{price}</span>}
+          {price && (
+            <span style={{ display: 'flex', flexDirection: 'column' }}>
+              <span style={{ fontSize: 12, fontWeight: 700, color: 'var(--ink)', fontVariantNumeric: 'tabular-nums' }}>{price}</span>
+              {altPrice && <span style={{ fontSize: 10.5, color: 'var(--ink-3)', fontVariantNumeric: 'tabular-nums' }}>{altPrice}</span>}
+            </span>
+          )}
           {lead.agent && (
             <div style={{ width: 22, height: 22, borderRadius: '50%', background: 'var(--surface-2)', color: 'var(--ink)', display: 'grid', placeItems: 'center', fontSize: 10, fontWeight: 600, border: '1px solid var(--border)' }}>
               {lead.agent.initials}

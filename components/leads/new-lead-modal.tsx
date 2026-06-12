@@ -5,10 +5,12 @@ import type { Lead, PipelineStage, Agent } from '@/lib/types'
 
 const ORIGINS = ['WhatsApp', 'Instagram', 'ZonaProp', 'Argenprop', 'Web', 'Referido'] as const
 
-export default function NewLeadModal({ stages, agents, defaultStageId, onClose, onCreated }: {
+export default function NewLeadModal({ stages, agents, defaultStageId, viewer = null, isAdmin = false, onClose, onCreated }: {
   stages: PipelineStage[]
   agents: Agent[]
   defaultStageId?: string
+  viewer?: Agent | null
+  isAdmin?: boolean
   onClose: () => void
   onCreated: (lead: Lead) => void
 }) {
@@ -31,25 +33,40 @@ export default function NewLeadModal({ stages, agents, defaultStageId, onClose, 
     setLoading(true)
     setError('')
     const supabase = createClient()
-    const { data, error: err } = await supabase
+    const base = {
+      name: name.trim(),
+      phone: phone || null,
+      email: email || null,
+      origin: origin || null,
+      operation,
+      stage_id: stageId || null,
+      agent_id: agentId || null,
+      amount: amount ? Number(amount) : null,
+      currency,
+      notes: notes || null,
+      hot: false,
+      score: 50,
+      days_without_contact: 0,
+    }
+    // Sin agente → al pozo. Con agente → dueño asignado.
+    const ownership = {
+      owner_id: agentId || null,
+      status_asignacion: agentId ? 'asignado' : 'pool',
+    }
+    const selectJoins = '*, property:properties(*), stage:pipeline_stages(*), agent:agents(*)'
+    let { data, error: err } = await supabase
       .from('leads')
-      .insert({
-        name: name.trim(),
-        phone: phone || null,
-        email: email || null,
-        origin: origin || null,
-        operation,
-        stage_id: stageId || null,
-        agent_id: agentId || null,
-        amount: amount ? Number(amount) : null,
-        currency,
-        notes: notes || null,
-        hot: false,
-        score: 50,
-        days_without_contact: 0,
-      })
-      .select('*, property:properties(*), stage:pipeline_stages(*), agent:agents(*)')
+      .insert({ ...base, ...ownership })
+      .select(selectJoins)
       .single()
+
+    // Compatibilidad: si la migración de propiedad de leads aún no corrió,
+    // reintenta sin las columnas nuevas.
+    if (err && /owner_id|status_asignacion|schema cache/i.test(err.message)) {
+      const retry = await supabase.from('leads').insert(base).select(selectJoins).single()
+      data = retry.data
+      err = retry.error
+    }
 
     if (err) { setError(err.message); setLoading(false); return }
     if (data) onCreated(data as Lead)
@@ -131,8 +148,10 @@ export default function NewLeadModal({ stages, agents, defaultStageId, onClose, 
               <div>
                 <label style={lbl}>Agente asignado</label>
                 <select value={agentId} onChange={e => setAgentId(e.target.value)} style={{ ...inp, appearance: 'none', cursor: 'pointer' }}>
-                  <option value="">Sin asignar</option>
-                  {agents.map(a => <option key={a.id} value={a.id}>{a.name}</option>)}
+                  <option value="">Sin asignar (va al pozo)</option>
+                  {(isAdmin ? agents : agents.filter(a => a.id === viewer?.id)).map(a => (
+                    <option key={a.id} value={a.id}>{a.id === viewer?.id ? `${a.name} (vos)` : a.name}</option>
+                  ))}
                 </select>
               </div>
             </div>

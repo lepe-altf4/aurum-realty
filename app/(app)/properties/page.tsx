@@ -1,6 +1,8 @@
 import { createAdminClient } from '@/lib/supabase/admin'
 import PropertiesView from '@/components/properties/properties-view'
 
+export const dynamic = 'force-dynamic'
+
 export default async function PropertiesPage() {
   let supabase
   try {
@@ -15,14 +17,22 @@ export default async function PropertiesPage() {
     )
   }
 
-  const { data: properties, error } = await supabase
-    .from('properties')
-    .select('*')
-    .order('created_at', { ascending: false })
+  const [propsRes, orgRes] = await Promise.all([
+    supabase
+      .from('properties')
+      .select('*')
+      .order('created_at', { ascending: false }),
+    supabase.from('organization').select('dollar_rate').limit(1).single(),
+  ])
 
-  if (error) {
-    console.error('[PropertiesPage] properties query error:', error)
+  if (propsRes.error) {
+    console.error('[PropertiesPage] properties query error:', propsRes.error)
   }
 
-  return <PropertiesView initialProperties={properties ?? []} />
+  return (
+    <PropertiesView
+      initialProperties={propsRes.data ?? []}
+      dollarRate={orgRes.data?.dollar_rate ?? 0}
+    />
+  )
 }

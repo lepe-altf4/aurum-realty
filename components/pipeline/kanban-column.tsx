@@ -21,12 +21,13 @@ function ColumnTotals({ leads }: { leads: Lead[] }) {
   )
 }
 
-export default function KanbanColumn({ stage, leads, stageIndex, totalStages, onAddLead }: {
+export default function KanbanColumn({ stage, leads, stageIndex, totalStages, onAddLead, dollarRate = 0 }: {
   stage: PipelineStage
   leads: Lead[]
   stageIndex: number
   totalStages: number
   onAddLead?: (stageId: string) => void
+  dollarRate?: number
 }) {
   const { setNodeRef, isOver } = useDroppable({ id: stage.id })
   const dotColor = stageIndex === totalStages - 1 ? 'var(--success)' : stageIndex === totalStages - 2 ? 'var(--gold)' : 'var(--ink)'
@@ -67,7 +68,7 @@ export default function KanbanColumn({ stage, leads, stageIndex, totalStages, on
 
       {/* Cards */}
       <SortableContext items={leads.map(l => l.id)} strategy={verticalListSortingStrategy}>
-        {leads.map(lead => <LeadCard key={lead.id} lead={lead} />)}
+        {leads.map(lead => <LeadCard key={lead.id} lead={lead} dollarRate={dollarRate} />)}
       </SortableContext>
 
       {leads.length === 0 && (

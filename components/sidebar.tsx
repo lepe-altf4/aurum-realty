@@ -1,10 +1,12 @@
 'use client'
+import { useState } from 'react'
 import { usePathname, useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import type { Agent } from '@/lib/types'
 
-const NAV = [
-  { href: '/leads',      label: 'Leads Hub',          icon: 'leads' },
+const NAV: { href: string; label: string; icon: string; adminOnly?: boolean; exact?: boolean }[] = [
+  { href: '/leads/pozo', label: 'Pozo de Leads',      icon: 'pool' },
+  { href: '/leads',      label: 'Mis Leads',          icon: 'leads', exact: true },
   { href: '/pipeline',   label: 'Pipeline',           icon: 'pipeline' },
   { href: '/sales',      label: 'Panel de Ventas',    icon: 'sales' },
   { href: '/properties', label: 'Propiedades',        icon: 'property' },
@@ -14,6 +16,7 @@ const NAV = [
 
 function NavIcon({ type }: { type: string }) {
   const s = { width: 16, height: 16, flexShrink: 0 as const }
+  if (type === 'pool') return <svg style={s} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round"><path d="M22 12h-6l-2 3h-4l-2-3H2"/><path d="M5.45 5.11 2 12v6a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-6l-3.45-6.89A2 2 0 0 0 16.76 4H7.24a2 2 0 0 0-1.79 1.11z"/></svg>
   if (type === 'leads') return <svg style={s} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round"><circle cx="9" cy="8" r="3.2"/><path d="M3.5 19c.7-3 3-4.5 5.5-4.5S13.8 16 14.5 19"/><circle cx="17" cy="9" r="2.5"/><path d="M14.5 14.4c2.4 0 5 1.2 5.5 4.6"/></svg>
   if (type === 'pipeline') return <svg style={s} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="4" width="4.5" height="16" rx="1"/><rect x="9.75" y="4" width="4.5" height="11" rx="1"/><rect x="16.5" y="4" width="4.5" height="7" rx="1"/></svg>
   if (type === 'sales') return <svg style={s} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round"><path d="M3 17l5-5 4 4 8-9"/><path d="M14 7h6v6"/></svg>
@@ -31,6 +34,7 @@ export default function Sidebar({ agent }: { agent: Agent | null }) {
   const router = useRouter()
   const supabase = createClient()
   const isAdmin = agent?.role === 'Admin'
+  const [open, setOpen] = useState(false)
 
   async function handleSignOut() {
     await supabase.auth.signOut()
@@ -43,7 +47,17 @@ export default function Sidebar({ agent }: { agent: Agent | null }) {
   const displayRole = agent?.role ?? 'Agente'
 
   return (
-    <aside style={{
+    <>
+    {/* Botón hamburguesa — visible solo en mobile (ver globals.css) */}
+    <button className="sidebar-toggle" onClick={() => setOpen(o => !o)} aria-label="Abrir menú">
+      {open ? (
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M6 6l12 12M18 6 6 18"/></svg>
+      ) : (
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M3 6h18M3 12h18M3 18h18"/></svg>
+      )}
+    </button>
+    <div className={'sidebar-overlay' + (open ? ' show' : '')} onClick={() => setOpen(false)} />
+    <aside className={'sidebar' + (open ? ' open' : '')} style={{
       background: 'var(--surface)',
       borderRight: '1px solid var(--border)',
       padding: '22px 14px 18px',
@@ -53,6 +67,7 @@ export default function Sidebar({ agent }: { agent: Agent | null }) {
       top: 0,
       height: '100vh',
       width: 'var(--sidebar-w)',
+      overflowY: 'auto',
     }}>
       {/* Brand */}
       <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '4px 8px 22px' }}>
@@ -72,9 +87,11 @@ export default function Sidebar({ agent }: { agent: Agent | null }) {
       <div style={{ fontSize: 10.5, letterSpacing: '0.16em', textTransform: 'uppercase', color: 'var(--ink-4)', fontWeight: 600, padding: '14px 8px 6px' }}>Workspace</div>
       <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
         {NAV.filter(item => !item.adminOnly || isAdmin).map(item => {
-          const active = pathname === item.href || pathname.startsWith(item.href + '/')
+          const active = item.exact
+            ? pathname === item.href
+            : pathname === item.href || pathname.startsWith(item.href + '/')
           return (
-            <a key={item.href} href={item.href} style={{
+            <a key={item.href} href={item.href} onClick={() => setOpen(false)} style={{
               display: 'flex', alignItems: 'center', gap: 11,
               padding: '9px 10px', borderRadius: 'var(--radius-sm)',
               color: active ? '#fff' : 'var(--ink-2)',
@@ -101,7 +118,7 @@ export default function Sidebar({ agent }: { agent: Agent | null }) {
           { label: 'Atrasados +5 días', icon: 'bell', href: '/leads?view=atrasados' },
           { label: 'Centro & San Pablo', icon: 'pin', href: '/leads?view=centro-sp' },
         ].map(v => (
-          <a key={v.label} href={v.href} style={{
+          <a key={v.label} href={v.href} onClick={() => setOpen(false)} style={{
             display: 'flex', alignItems: 'center', gap: 11, padding: '9px 10px',
             borderRadius: 'var(--radius-sm)', color: 'var(--ink-2)', fontWeight: 500,
             fontSize: 13.5, textDecoration: 'none',
@@ -133,5 +150,6 @@ export default function Sidebar({ agent }: { agent: Agent | null }) {
         </button>
       </div>
     </aside>
+    </>
   )
 }

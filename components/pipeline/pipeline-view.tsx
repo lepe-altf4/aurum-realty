@@ -35,10 +35,11 @@ function OpSwitch({ value, onChange }: { value: OpFilter; onChange: (v: OpFilter
   )
 }
 
-export default function PipelineView({ initialLeads, stages, agents }: {
+export default function PipelineView({ initialLeads, stages, agents, dollarRate = 0 }: {
   initialLeads: Lead[]
   stages: PipelineStage[]
   agents: Agent[]
+  dollarRate?: number
 }) {
   const [leads, setLeads] = useState<Lead[]>(initialLeads)
   const [op, setOp] = useState<OpFilter>('Todas')
@@ -136,7 +137,7 @@ export default function PipelineView({ initialLeads, stages, agents }: {
         }
       />
 
-      <div style={{ padding: '24px 32px 48px' }}>
+      <div className="page-pad" style={{ padding: '24px 32px 48px' }}>
         {/* Switch row */}
         <div style={{ display: 'flex', alignItems: 'center', gap: 14, marginBottom: 18, flexWrap: 'wrap' }}>
           <OpSwitch value={op} onChange={setOp} />
@@ -167,8 +168,8 @@ export default function PipelineView({ initialLeads, stages, agents }: {
           </div>
         </div>
 
-        {/* Kanban */}
-        <div style={{ display: 'grid', gridTemplateColumns: `repeat(${stages.length}, minmax(260px, 1fr))`, gap: 14, alignItems: 'start' }}>
+        {/* Kanban — scrollea horizontal en pantallas chicas */}
+        <div className="scroll-area" style={{ display: 'grid', gridTemplateColumns: `repeat(${stages.length}, minmax(260px, 1fr))`, gap: 14, alignItems: 'start', overflowX: 'auto', paddingBottom: 8 }}>
           {stages.map(stage => (
             <KanbanColumn
               key={stage.id}
@@ -177,13 +178,14 @@ export default function PipelineView({ initialLeads, stages, agents }: {
               stageIndex={stages.findIndex(s => s.id === stage.id)}
               totalStages={stages.length}
               onAddLead={handleAddLeadToStage}
+              dollarRate={dollarRate}
             />
           ))}
         </div>
       </div>
 
       <DragOverlay>
-        {activeLead && <LeadCard lead={activeLead} isDragging />}
+        {activeLead && <LeadCard lead={activeLead} isDragging dollarRate={dollarRate} />}
       </DragOverlay>
 
       {showNewLead && (

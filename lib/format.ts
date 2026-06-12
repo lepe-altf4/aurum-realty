@@ -24,6 +24,19 @@ export function compactNum(n: number): string {
   return n.toString()
 }
 
+export function timeAgo(iso: string | null | undefined): string {
+  if (!iso) return ''
+  const diff = Date.now() - new Date(iso).getTime()
+  if (diff < 0) return 'recién'
+  const m = Math.floor(diff / 60000)
+  if (m < 1) return 'recién'
+  if (m < 60) return `hace ${m} min`
+  const h = Math.floor(m / 60)
+  if (h < 24) return `hace ${h} h`
+  const d = Math.floor(h / 24)
+  return d === 1 ? 'hace 1 día' : `hace ${d} días`
+}
+
 export function dualPrice(usdAmount: number, primary: 'USD' | 'ARS', dollarRate: number) {
   const arsAmount = usdAmount * dollarRate
   if (primary === 'USD') {

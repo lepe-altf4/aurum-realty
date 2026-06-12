@@ -23,6 +23,8 @@ export interface Organization {
   cuit: string | null
   address: string | null
   dollar_rate: number
+  dollar_rate_updated_at?: string | null
+  dollar_rate_source?: 'auto' | 'manual'
   created_at: string
 }
 
@@ -54,6 +56,8 @@ export interface Lead {
   operation: 'Venta' | 'Alquiler' | null
   stage_id: string | null
   agent_id: string | null
+  owner_id?: string | null
+  status_asignacion?: 'pool' | 'pendiente_aprobacion' | 'asignado'
   amount: number | null
   currency: 'USD' | 'ARS'
   hot: boolean
@@ -77,6 +81,19 @@ export interface Activity {
   description: string
   created_at: string
   agent?: Agent | null
+}
+
+export interface LeadClaim {
+  id: string
+  lead_id: string
+  agente_id: string
+  estado: 'pendiente' | 'aprobado' | 'rechazado'
+  created_at: string
+  resolved_at: string | null
+  resolved_by: string | null
+  // joined
+  lead?: Lead | null
+  agente?: Agent | null
 }
 
 export type OpFilter = 'Todas' | 'Venta' | 'Alquiler'

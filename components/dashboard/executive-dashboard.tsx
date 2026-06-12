@@ -1,7 +1,7 @@
 'use client'
 import { useState, useMemo, useEffect } from 'react'
 import Topbar from '@/components/ui/topbar'
-import { compactNum, fmtUSD, fmtARS } from '@/lib/format'
+import { compactNum, fmtUSD, fmtARS, timeAgo } from '@/lib/format'
 import type { Lead, Agent } from '@/lib/types'
 
 // ── helpers ─────────────────────────────────────────────────────────────────
@@ -320,10 +320,12 @@ function PeriodModal({ onSelect, onClose }: {
 }
 
 // ── main component ────────────────────────────────────────────────────────────
-export default function ExecutiveDashboard({ leads, agents, dollarRate, activeProperties }: {
+export default function ExecutiveDashboard({ leads, agents, dollarRate, dollarUpdatedAt = null, dollarSource = 'manual', activeProperties }: {
   leads: Lead[]
   agents: Agent[]
   dollarRate: number
+  dollarUpdatedAt?: string | null
+  dollarSource?: 'auto' | 'manual'
   activeProperties: number
 }) {
   const [currency, setCurrency] = useState<'USD' | 'ARS'>('USD')
@@ -388,7 +390,16 @@ export default function ExecutiveDashboard({ leads, agents, dollarRate, activePr
   }, [agents, leads, dollarRate])
 
   const rightControls = (
-    <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
+    <div style={{ display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap' }}>
+      <div title={dollarSource === 'auto' ? 'Cotización automática (dólar blue · dolarapi.com)' : 'Cotización cargada manualmente'} style={{
+        display: 'inline-flex', alignItems: 'center', gap: 8,
+        padding: '7px 12px', borderRadius: 'var(--radius)', border: '1px solid var(--border)',
+        background: 'var(--surface)', fontSize: 12, color: 'var(--ink-2)',
+      }}>
+        <span style={{ width: 7, height: 7, borderRadius: '50%', background: dollarSource === 'auto' ? 'var(--success)' : 'var(--gold)', flexShrink: 0 }} />
+        <span className="num" style={{ fontWeight: 700 }}>USD ≈ ${Math.round(dollarRate).toLocaleString('es-AR')}</span>
+        {dollarUpdatedAt && <span style={{ color: 'var(--ink-3)' }}>{timeAgo(dollarUpdatedAt)}</span>}
+      </div>
       <button onClick={() => setShowPeriodModal(true)} style={{
         display: 'inline-flex', alignItems: 'center', gap: 8,
         padding: '8px 14px', borderRadius: 'var(--radius)', border: '1px solid var(--border)',
@@ -414,10 +425,10 @@ export default function ExecutiveDashboard({ leads, agents, dollarRate, activePr
     <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
       <Topbar title="Dashboard Ejecutivo" crumb="CRM" search={false} right={rightControls} />
 
-      <div style={{ padding: 24, display: 'flex', flexDirection: 'column', gap: 20, overflowY: 'auto', flex: 1 }}>
+      <div className="page-pad" style={{ padding: 24, display: 'flex', flexDirection: 'column', gap: 20, overflowY: 'auto', flex: 1 }}>
 
         {/* ── 5 KPI Hero Row ── */}
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5,1fr)', gap: 14 }}>
+        <div className="stat-grid-5" style={{ display: 'grid', gridTemplateColumns: 'repeat(5,1fr)', gap: 14 }}>
           <div style={{ background: '#fff', border: '1px solid var(--border)', borderRadius: 'var(--radius-lg)', padding: '18px 20px' }}>
             <div style={{ fontSize: 11, letterSpacing: '0.14em', textTransform: 'uppercase', color: 'var(--ink-3)', fontWeight: 600 }}>Pipeline Total</div>
             <div className="num" style={{ fontFamily: 'var(--font-jakarta)', fontWeight: 700, fontSize: 26, marginTop: 8, letterSpacing: '-0.02em' }}>{pipelineDisplay}</div>
@@ -450,7 +461,7 @@ export default function ExecutiveDashboard({ leads, agents, dollarRate, activePr
         </div>
 
         {/* ── Row 2: Bar chart + Donut ── */}
-        <div style={{ display: 'grid', gridTemplateColumns: '1.4fr 1fr', gap: 16 }}>
+        <div className="grid-2col-resp" style={{ display: 'grid', gridTemplateColumns: '1.4fr 1fr', gap: 16 }}>
           <Card>
             <CardHeader>
               <h3 style={{ fontSize: 14, fontWeight: 700, fontFamily: 'var(--font-jakarta)' }}>Ingresos por mes · últimos 9 meses</h3>

@@ -23,8 +23,21 @@ function MiniStat({ label, value, sub, accent }: { label: string; value: number;
   )
 }
 
+// Precios efectivos: la moneda de listado manda; la otra se recalcula con la
+// cotización vigente de la organización (si está disponible).
+function effectiveUsd(p: Property, rate: number): number | null {
+  if (p.currency_listing === 'USD') return p.price_usd
+  if (rate > 0 && p.price_ars) return p.price_ars / rate
+  return p.price_usd
+}
+function effectiveArs(p: Property, rate: number): number | null {
+  if (p.currency_listing === 'ARS') return p.price_ars
+  if (rate > 0 && p.price_usd) return p.price_usd * rate
+  return p.price_ars
+}
+
 // ── Property detail modal ─────────────────────────────────────────────────────
-function PropertyDetailModal({ property, onClose }: { property: Property; onClose: () => void }) {
+function PropertyDetailModal({ property, dollarRate = 0, onClose }: { property: Property; dollarRate?: number; onClose: () => void }) {
   return (
     <>
       <div onClick={onClose} style={{ position: 'fixed', inset: 0, background: 'rgba(36,25,17,0.4)', backdropFilter: 'blur(2px)', zIndex: 80 }} />
@@ -85,23 +98,23 @@ function PropertyDetailModal({ property, onClose }: { property: Property; onClos
 
           {/* Prices */}
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14, marginBottom: 20 }}>
-            {property.price_usd && (
+            {effectiveUsd(property, dollarRate) && (
               <div style={{ padding: '16px', background: property.currency_listing === 'USD' ? 'var(--ink)' : 'var(--surface)', borderRadius: 'var(--radius)', border: '1px solid var(--border)' }}>
                 <div style={{ fontSize: 10, fontWeight: 600, color: property.currency_listing === 'USD' ? 'rgba(255,255,255,.6)' : 'var(--ink-3)', textTransform: 'uppercase', letterSpacing: '0.1em', marginBottom: 4 }}>
                   Precio USD {property.currency_listing === 'USD' ? '· LISTADO' : ''}
                 </div>
                 <div style={{ fontSize: 20, fontWeight: 700, color: property.currency_listing === 'USD' ? '#fff' : 'var(--ink)', fontVariantNumeric: 'tabular-nums' }}>
-                  {fmtUSD(property.price_usd)}{property.operation === 'Alquiler' ? '/mes' : ''}
+                  {fmtUSD(effectiveUsd(property, dollarRate) ?? 0)}{property.operation === 'Alquiler' ? '/mes' : ''}
                 </div>
               </div>
             )}
-            {property.price_ars && (
+            {effectiveArs(property, dollarRate) && (
               <div style={{ padding: '16px', background: property.currency_listing === 'ARS' ? 'var(--gold-soft)' : 'var(--surface)', borderRadius: 'var(--radius)', border: `1px solid ${property.currency_listing === 'ARS' ? '#E2D4B5' : 'var(--border)'}` }}>
                 <div style={{ fontSize: 10, fontWeight: 600, color: property.currency_listing === 'ARS' ? '#8E6840' : 'var(--ink-3)', textTransform: 'uppercase', letterSpacing: '0.1em', marginBottom: 4 }}>
                   Precio ARS {property.currency_listing === 'ARS' ? '· LISTADO' : ''}
                 </div>
                 <div style={{ fontSize: 20, fontWeight: 700, color: property.currency_listing === 'ARS' ? '#6E5630' : 'var(--ink)', fontVariantNumeric: 'tabular-nums' }}>
-                  {fmtARS(property.price_ars)}{property.operation === 'Alquiler' ? '/mes' : ''}
+                  {fmtARS(effectiveArs(property, dollarRate) ?? 0)}{property.operation === 'Alquiler' ? '/mes' : ''}
                 </div>
               </div>
             )}
@@ -262,7 +275,7 @@ function ContextMenu({ property, onClose, onStatusChange, onDelete }: {
 }
 
 // ── Main view ─────────────────────────────────────────────────────────────────
-export default function PropertiesView({ initialProperties }: { initialProperties: Property[] }) {
+export default function PropertiesView({ initialProperties, dollarRate = 0 }: { initialProperties: Property[]; dollarRate?: number }) {
   const [properties, setProperties] = useState<Property[]>(initialProperties)
   const [opFilter, setOpFilter] = useState('Todas')
   const [typeFilter, setTypeFilter] = useState('Todos')
@@ -321,9 +334,9 @@ export default function PropertiesView({ initialProperties }: { initialPropertie
         }
       />
 
-      <div style={{ padding: '24px 32px 48px' }}>
+      <div className="page-pad" style={{ padding: '24px 32px 48px' }}>
         {/* Stats */}
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5,1fr)', gap: 14, marginBottom: 18 }}>
+        <div className="stat-grid-5" style={{ display: 'grid', gridTemplateColumns: 'repeat(5,1fr)', gap: 14, marginBottom: 18 }}>
           <MiniStat label="Inventario total" value={stats.total} sub="propiedades activas" />
           <MiniStat label="Disponibles" value={stats.disponible} sub="listas para mostrar" />
           <MiniStat label="Reservadas" value={stats.reservada} sub="con seña en curso" accent="gold" />
@@ -426,7 +439,7 @@ export default function PropertiesView({ initialProperties }: { initialPropertie
                       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: 6 }}>
                         {p.currency_listing === 'USD' && <span style={{ fontSize: 9, fontWeight: 700, padding: '1px 4px', borderRadius: 3, letterSpacing: '0.08em', background: 'var(--ink)', color: '#fff' }}>LISTADO</span>}
                         <span style={{ fontWeight: p.currency_listing === 'USD' ? 700 : 500, color: p.currency_listing === 'USD' ? 'var(--ink)' : 'var(--ink-3)', fontSize: 13.5 }}>
-                          {p.price_usd ? fmtUSD(p.price_usd) + (p.operation === 'Alquiler' ? '/mes' : '') : '—'}
+                          {effectiveUsd(p, dollarRate) ? fmtUSD(effectiveUsd(p, dollarRate)!) + (p.operation === 'Alquiler' ? '/mes' : '') : '—'}
                         </span>
                       </div>
                     </td>
@@ -434,7 +447,7 @@ export default function PropertiesView({ initialProperties }: { initialPropertie
                       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: 6 }}>
                         {p.currency_listing === 'ARS' && <span style={{ fontSize: 9, fontWeight: 700, padding: '1px 4px', borderRadius: 3, letterSpacing: '0.08em', background: 'var(--gold)', color: 'var(--ink)' }}>LISTADO</span>}
                         <span style={{ fontWeight: p.currency_listing === 'ARS' ? 700 : 500, color: p.currency_listing === 'ARS' ? 'var(--ink)' : 'var(--ink-3)', fontSize: 13.5 }}>
-                          {p.price_ars ? fmtARS(p.price_ars) + (p.operation === 'Alquiler' ? '/mes' : '') : '—'}
+                          {effectiveArs(p, dollarRate) ? fmtARS(effectiveArs(p, dollarRate)!) + (p.operation === 'Alquiler' ? '/mes' : '') : '—'}
                         </span>
                       </div>
                     </td>
@@ -494,6 +507,7 @@ export default function PropertiesView({ initialProperties }: { initialPropertie
       {detailProperty && (
         <PropertyDetailModal
           property={detailProperty}
+          dollarRate={dollarRate}
           onClose={() => setDetailProperty(null)}
         />
       )}

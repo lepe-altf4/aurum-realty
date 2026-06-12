@@ -72,3 +72,60 @@ button { font-family: inherit; cursor: pointer; }
 
 /* Focus ring */
 .focus-ring:focus-visible { outline: 2px solid var(--gold); outline-offset: 2px; }
+
+/* ── Mobile ───────────────────────────────────────────────── */
+.sidebar-toggle { display: none; }
+.sidebar-overlay { display: none; }
+
+@media (max-width: 900px) {
+  .app-shell { grid-template-columns: 1fr; }
+
+  /* Sidebar pasa a drawer off-canvas */
+  .sidebar {
+    position: fixed !important;
+    top: 0; left: 0; bottom: 0;
+    z-index: 100;
+    transform: translateX(-105%);
+    transition: transform .22s ease;
+    box-shadow: var(--shadow-lg);
+  }
+  .sidebar.open { transform: translateX(0); }
+
+  .sidebar-toggle {
+    display: grid;
+    place-items: center;
+    position: fixed;
+    bottom: 18px;
+    left: 14px;
+    z-index: 110;
+    width: 46px; height: 46px;
+    border-radius: 50%;
+    border: 1px solid var(--border-strong);
+    background: var(--ink);
+    color: var(--gold);
+    cursor: pointer;
+    box-shadow: var(--shadow-lg);
+  }
+
+  .sidebar-overlay.show {
+    display: block;
+    position: fixed; inset: 0;
+    background: rgba(36,25,17,0.45);
+    z-index: 95;
+  }
+
+  /* Paddings más compactos */
+  .page-pad { padding: 16px 14px 90px !important; }
+  .topbar { padding: 12px 14px !important; }
+  .topbar-search { display: none !important; }
+  .tab-nav { overflow-x: auto; padding: 0 14px !important; }
+
+  /* Grids de stats apiladas */
+  .stat-grid-5 { grid-template-columns: repeat(2, 1fr) !important; }
+  .stat-grid-3 { grid-template-columns: 1fr !important; }
+  .grid-2col-resp { grid-template-columns: 1fr !important; }
+}
+
+@media (max-width: 560px) {
+  .stat-grid-5 { grid-template-columns: 1fr 1fr !important; }
+}

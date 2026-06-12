@@ -315,7 +315,7 @@ export default function SalesPanel({ leads, stages, agents }: {
     <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
       <Topbar title="Panel de Ventas" crumb="CRM" search={false} right={tabBar} />
 
-      <div style={{ padding: 24, display: 'flex', flexDirection: 'column', gap: 20, overflowY: 'auto', flex: 1 }}>
+      <div className="page-pad" style={{ padding: 24, display: 'flex', flexDirection: 'column', gap: 20, overflowY: 'auto', flex: 1 }}>
 
         {/* ── Red Alert Banner ── */}
         {overdue.length > 0 && (
@@ -346,7 +346,7 @@ export default function SalesPanel({ leads, stages, agents }: {
         )}
 
         {/* ── 5 KPI cards ── */}
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5,1fr)', gap: 14 }}>
+        <div className="stat-grid-5" style={{ display: 'grid', gridTemplateColumns: 'repeat(5,1fr)', gap: 14 }}>
           <div style={{ background: '#fff', border: '1px solid var(--border)', borderRadius: 'var(--radius-lg)', padding: '18px 20px' }}>
             <div style={{ fontSize: 11, letterSpacing: '0.14em', textTransform: 'uppercase', color: 'var(--ink-3)', fontWeight: 600 }}>Leads Activos</div>
             <div className="num" style={{ fontFamily: 'var(--font-jakarta)', fontWeight: 700, fontSize: 30, marginTop: 8 }}>{totalLeads}</div>

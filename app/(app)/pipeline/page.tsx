@@ -1,27 +1,20 @@
-import { createAdminClient } from '@/lib/supabase/admin'
+import { createClient } from '@/lib/supabase/server'
 import PipelineView from '@/components/pipeline/pipeline-view'
 
-export default async function PipelinePage() {
-  let supabase
-  try {
-    supabase = createAdminClient()
-  } catch (err: unknown) {
-    const msg = err instanceof Error ? err.message : String(err)
-    return (
-      <div className="p-8 text-red-600">
-        <h2 className="text-xl font-bold mb-2">Configuration Error</h2>
-        <p className="font-mono text-sm">{msg}</p>
-      </div>
-    )
-  }
+export const dynamic = 'force-dynamic'
 
-  const [leadsRes, stagesRes, agentsRes] = await Promise.all([
+export default async function PipelinePage() {
+  // Sesión del usuario: RLS limita los leads visibles según rol/dueño.
+  const supabase = await createClient()
+
+  const [leadsRes, stagesRes, agentsRes, orgRes] = await Promise.all([
     supabase
       .from('leads')
       .select('*, property:properties(*), stage:pipeline_stages(*), agent:agents(*)')
       .order('created_at', { ascending: false }),
     supabase.from('pipeline_stages').select('*').order('position'),
     supabase.from('agents').select('*').eq('status', 'Activo'),
+    supabase.from('organization').select('dollar_rate').limit(1).single(),
   ])
 
   if (leadsRes.error) {
@@ -33,6 +26,7 @@ export default async function PipelinePage() {
       initialLeads={leadsRes.data ?? []}
       stages={stagesRes.data ?? []}
       agents={agentsRes.data ?? []}
+      dollarRate={orgRes.data?.dollar_rate ?? 0}
     />
   )
 }
