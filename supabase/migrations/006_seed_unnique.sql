@@ -185,10 +185,10 @@ begin
 
   -- ── ACTIVIDADES (definen el "último contacto" real de cada lead) ──
   insert into public.activities (lead_id, agent_id, type, description, created_at) values
-    (l1, a_richard, 'Web',         'Ingresó consulta web por Diagonal España 400.',                now()-interval '12 days'),
+    (l1, a_richard, 'Nota',        'Ingresó consulta web por Diagonal España 400.',                now()-interval '12 days'),
     (l1, a_richard, 'WhatsApp',    'Se envió ficha y opciones de financiación.',                   now()-interval '4 days'),
 
-    (l2, a_matias,  'Instagram',   'Consulta por DM sobre el lote Primaterra.',                    now()-interval '9 days'),
+    (l2, a_matias,  'Nota',        'Consulta por DM de Instagram sobre el lote Primaterra.',       now()-interval '9 days'),
     (l2, a_matias,  'Llamada',     'Se explicaron medidas y servicios. Quedó en pensarlo.',        now()-interval '6 days'),
 
     (l3, a_lucia,   'WhatsApp',    'Primer contacto por Islas Malvinas 600.',                      now()-interval '8 days'),
@@ -200,7 +200,7 @@ begin
     (l5, a_lucia,   'Visita',      'Visitó Los Tilos. Decidida a ofertar.',                        now()-interval '4 days'),
     (l5, a_lucia,   'Nota',        'Presentó oferta de USD 245.000. Propietario evalúa.',          now()),
 
-    (l6, a_matias,  'ZonaProp',    'Consulta por Santa Fe 600 para inversión.',                    now()-interval '5 days'),
+    (l6, a_matias,  'Nota',        'Consulta vía ZonaProp por Santa Fe 600 para inversión.',       now()-interval '5 days'),
     (l6, a_matias,  'Email',       'Envió oferta formal por USD 100.000.',                         now()-interval '2 days'),
 
     (l7, a_richard, 'WhatsApp',    'Coordinó reserva de Casa Milenium.',                           now()-interval '5 days'),
