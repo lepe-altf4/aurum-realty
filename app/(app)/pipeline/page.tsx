@@ -24,7 +24,7 @@ export default async function PipelinePage() {
   const [leadsRes, stagesRes, agentsRes, orgRes] = await Promise.all([
     supabase
       .from('leads')
-      .select('*, property:properties(*), stage:pipeline_stages(*), agent:agents(*)')
+      .select('*, property:properties(*), stage:pipeline_stages(*), agent:agents!agent_id(*)')
       .order('created_at', { ascending: false }),
     supabase.from('pipeline_stages').select('*').order('position'),
     supabase.from('agents').select('*').eq('status', 'Activo'),

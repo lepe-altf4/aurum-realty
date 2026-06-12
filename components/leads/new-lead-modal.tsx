@@ -53,7 +53,7 @@ export default function NewLeadModal({ stages, agents, defaultStageId, viewer = 
       owner_id: agentId || null,
       status_asignacion: agentId ? 'asignado' : 'pool',
     }
-    const selectJoins = '*, property:properties(*), stage:pipeline_stages(*), agent:agents(*)'
+    const selectJoins = '*, property:properties(*), stage:pipeline_stages(*), agent:agents!agent_id(*)'
     let { data, error: err } = await supabase
       .from('leads')
       .insert({ ...base, ...ownership })

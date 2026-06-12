@@ -23,7 +23,7 @@ export default async function PoolPage() {
 
   const leadsRes = await supabase
     .from('leads')
-    .select('*, property:properties(*), stage:pipeline_stages(*), agent:agents(*)')
+    .select('*, property:properties(*), stage:pipeline_stages(*), agent:agents!agent_id(*)')
     .in('status_asignacion', ['pool', 'pendiente_aprobacion'])
     .order('created_at', { ascending: false })
 
@@ -45,7 +45,7 @@ export default async function PoolPage() {
   // Reclamos pendientes: el Admin ve todos; cada agente, los suyos. (filtro server-side)
   const claimsRes = await supabase
     .from('lead_claims')
-    .select('*, lead:leads(*), agente:agents(*)')
+    .select('*, lead:leads(*), agente:agents!agente_id(*)')
     .eq('estado', 'pendiente')
     .order('created_at', { ascending: true })
 
