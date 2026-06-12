@@ -61,11 +61,12 @@ create index if not exists activities_created_idx   on public.activities(created
 create index if not exists properties_status_idx    on public.properties(status);
 
 -- ──────────────────────────────────────────────────────────────
--- 5. Limpieza: bucket viejo `property-images` (reemplazado por
---    `property-photos` en la migración 007 + storage SQL)
+-- 5. Bucket viejo `property-images` (reemplazado por `property-photos`)
+--    Supabase NO permite borrarlo por SQL (storage.protect_delete()).
+--    Borralo a mano desde el dashboard:
+--      Storage → property-images → ⋯ → Delete bucket
+--    Es cosmético: la app ya no lo usa. Podés dejarlo si preferís.
 -- ──────────────────────────────────────────────────────────────
-delete from storage.objects where bucket_id = 'property-images';
-delete from storage.buckets where id = 'property-images';
 
 -- ──────────────────────────────────────────────────────────────
 -- VERIFICACIÓN — policies por tabla (revisar que las "Auth ..."
