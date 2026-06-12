@@ -1,5 +1,5 @@
 'use client'
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { usePathname, useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import type { Agent } from '@/lib/types'
@@ -35,6 +35,34 @@ export default function Sidebar({ agent }: { agent: Agent | null }) {
   const supabase = createClient()
   const isAdmin = agent?.role === 'Admin'
   const [open, setOpen] = useState(false)
+  const [pendingClaims, setPendingClaims] = useState(0)
+
+  // Badge de reclamos pendientes para el Admin: cuenta inicial +
+  // actualización en vivo vía Supabase Realtime sobre lead_claims.
+  useEffect(() => {
+    if (!isAdmin) return
+    const sb = createClient()
+    let active = true
+
+    async function loadCount() {
+      const { count, error } = await sb
+        .from('lead_claims')
+        .select('id', { count: 'exact', head: true })
+        .eq('estado', 'pendiente')
+      if (active && !error) setPendingClaims(count ?? 0)
+    }
+    loadCount()
+
+    const channel = sb
+      .channel('lead-claims-badge')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'lead_claims' }, loadCount)
+      .subscribe()
+
+    return () => {
+      active = false
+      sb.removeChannel(channel)
+    }
+  }, [isAdmin])
 
   async function handleSignOut() {
     await supabase.auth.signOut()
@@ -105,6 +133,17 @@ export default function Sidebar({ agent }: { agent: Agent | null }) {
                 <NavIcon type={item.icon} />
               </span>
               <span>{item.label}</span>
+              {item.href === '/leads/pozo' && pendingClaims > 0 && (
+                <span title={`${pendingClaims} reclamo${pendingClaims === 1 ? '' : 's'} pendiente${pendingClaims === 1 ? '' : 's'} de aprobación`} style={{
+                  marginLeft: 'auto', minWidth: 18, height: 18, padding: '0 5px',
+                  borderRadius: 999, background: 'var(--danger)', color: '#fff',
+                  fontSize: 10.5, fontWeight: 700, display: 'inline-flex',
+                  alignItems: 'center', justifyContent: 'center', flexShrink: 0,
+                  fontVariantNumeric: 'tabular-nums',
+                }}>
+                  {pendingClaims > 99 ? '99+' : pendingClaims}
+                </span>
+              )}
             </a>
           )
         })}
