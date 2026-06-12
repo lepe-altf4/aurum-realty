@@ -38,7 +38,7 @@ function AdminSettings(){
                 </div>
                 <div className="field">
                   <label>CUIT</label>
-                  <input className="search focus-ring" style={{minWidth:0, width:"100%"}} defaultValue="30-71204938-2"/>
+                  <input className="search focus-ring" style={{minWidth:0, width:"100%"}} defaultValue="" placeholder="XX-XXXXXXXX-X"/>
                 </div>
                 <div className="field">
                   <label>Sucursal principal</label>

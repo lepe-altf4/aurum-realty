@@ -155,7 +155,7 @@ export default function Sidebar({ agent }: { agent: Agent | null }) {
         {[
           { label: 'Leads premium', icon: 'sparkle', href: '/leads?view=premium' },
           { label: 'Atrasados +5 días', icon: 'bell', href: '/leads?view=atrasados' },
-          { label: 'Centro & San Pablo', icon: 'pin', href: '/leads?view=centro-sp' },
+          { label: 'Centro & Área Este', icon: 'pin', href: '/leads?view=centro-sp' },
         ].map(v => (
           <a key={v.label} href={v.href} onClick={() => setOpen(false)} style={{
             display: 'flex', alignItems: 'center', gap: 11, padding: '9px 10px',

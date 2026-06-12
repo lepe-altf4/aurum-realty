@@ -163,7 +163,7 @@ export default function LeadsHub({ initialLeads, stages, agents, viewer = null, 
       .then(({ data }) => {
         const zoneProps = (data || []).filter((p: Property) => {
           const n = p.neighborhood?.toLowerCase() ?? ''
-          return n.includes('centro') || n.includes('san pablo')
+          return n.includes('centro')
         })
         setZoneProperties(zoneProps)
         setLoadingZone(false)
@@ -186,7 +186,7 @@ export default function LeadsHub({ initialLeads, stages, agents, viewer = null, 
     } else if (savedView === 'centro-sp') {
       base = base.filter(l => {
         const n = l.property?.neighborhood?.toLowerCase() ?? ''
-        return n.includes('centro') || n.includes('san pablo')
+        return n.includes('centro')
       })
     }
 
@@ -231,7 +231,7 @@ export default function LeadsHub({ initialLeads, stages, agents, viewer = null, 
   const SAVED_VIEWS = [
     { key: 'premium' as const, label: 'Leads Premium', sub: 'Ticket > USD 100k', color: 'var(--gold)', bg: 'var(--gold-soft)', border: '#E2D4B5' },
     { key: 'atrasados' as const, label: 'Atrasados +5 días', sub: 'Sin contacto', color: 'var(--danger)', bg: '#FBE8E5', border: '#E9CDC9' },
-    { key: 'centro-sp' as const, label: 'Centro & San Pablo', sub: 'Cipolletti · zonas top', color: 'var(--ink)', bg: 'var(--surface)', border: 'var(--border)' },
+    { key: 'centro-sp' as const, label: 'Centro & Área Este', sub: 'Neuquén Capital · zonas top', color: 'var(--ink)', bg: 'var(--surface)', border: 'var(--border)' },
   ]
 
   return (
@@ -335,7 +335,7 @@ export default function LeadsHub({ initialLeads, stages, agents, viewer = null, 
             <div style={{ padding: '14px 20px', borderRadius: 'var(--radius)', background: 'var(--surface)', border: '1px solid var(--border)', display: 'flex', alignItems: 'center', gap: 12 }}>
               <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="var(--ink-2)" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M20 10c0 6-8 12-8 12S4 16 4 10a8 8 0 1 1 16 0z"/><circle cx="12" cy="10" r="3"/></svg>
               <div>
-                <div style={{ fontWeight: 600, fontSize: 13 }}>{filtered.length} leads interesados en Centro o San Pablo</div>
+                <div style={{ fontWeight: 600, fontSize: 13 }}>{filtered.length} leads interesados en zona Centro</div>
                 <div style={{ fontSize: 12, color: 'var(--ink-3)', marginTop: 2 }}>
                   {zoneProperties.length} propiedades disponibles en zona · Match automático activo
                 </div>
