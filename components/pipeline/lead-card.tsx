@@ -40,6 +40,13 @@ export default function LeadCard({ lead, isDragging = false, dollarRate = 0 }: {
         transition: 'box-shadow .12s, border-color .12s',
         userSelect: 'none',
       }}>
+        {/* Portada de la propiedad */}
+        {lead.property?.photo_url && (
+          <div style={{ height: 84, marginBottom: 10, borderRadius: 'var(--radius-sm)', overflow: 'hidden', background: 'var(--surface)' }}>
+            <img src={lead.property.photo_url} alt={lead.property.address} loading="lazy" style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block', pointerEvents: 'none' }} />
+          </div>
+        )}
+
         {/* Header row */}
         <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 6 }}>
           <span style={{ fontFamily: 'var(--font-mono)', fontSize: 11, color: 'var(--ink-3)' }}>{lead.id.slice(0, 8).toUpperCase()}</span>

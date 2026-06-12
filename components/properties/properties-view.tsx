@@ -6,6 +6,7 @@ import TypeIcon from '@/components/ui/type-icon'
 import { fmtUSD, fmtARS } from '@/lib/format'
 import type { Property } from '@/lib/types'
 import NewPropertyModal from '@/components/properties/new-property-modal'
+import PhotoManager from '@/components/properties/photo-manager'
 import { createClient } from '@/lib/supabase/client'
 
 const TYPES = ['Todos', 'Casa', 'Departamento', 'Lote', 'Local']
@@ -37,7 +38,14 @@ function effectiveArs(p: Property, rate: number): number | null {
 }
 
 // ── Property detail modal ─────────────────────────────────────────────────────
-function PropertyDetailModal({ property, dollarRate = 0, onClose }: { property: Property; dollarRate?: number; onClose: () => void }) {
+function PropertyDetailModal({ property, dollarRate = 0, onClose, onCoverChange }: { property: Property; dollarRate?: number; onClose: () => void; onCoverChange?: (propertyId: string, coverUrl: string | null) => void }) {
+  const [coverUrl, setCoverUrl] = useState<string | null>(property.photo_url)
+
+  function handleCover(url: string | null) {
+    setCoverUrl(url)
+    onCoverChange?.(property.id, url)
+  }
+
   return (
     <>
       <div onClick={onClose} style={{ position: 'fixed', inset: 0, background: 'rgba(36,25,17,0.4)', backdropFilter: 'blur(2px)', zIndex: 80 }} />
@@ -49,8 +57,8 @@ function PropertyDetailModal({ property, dollarRate = 0, onClose }: { property: 
       }}>
         {/* Photo */}
         <div style={{ position: 'relative', height: 220, background: 'var(--surface)', overflow: 'hidden', borderRadius: 'var(--radius-lg) var(--radius-lg) 0 0' }}>
-          {property.photo_url ? (
-            <img src={property.photo_url} alt={property.address} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+          {coverUrl ? (
+            <img src={coverUrl} alt={property.address} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
           ) : (
             <div style={{ width: '100%', height: '100%', background: 'repeating-linear-gradient(45deg, #EFEAE0 0 8px, #F8F6F2 8px 16px)', display: 'grid', placeItems: 'center' }}>
               <span style={{ fontSize: 11, color: 'var(--ink-4)', fontFamily: 'var(--font-mono)' }}>Sin fotografía</span>
@@ -121,11 +129,17 @@ function PropertyDetailModal({ property, dollarRate = 0, onClose }: { property: 
           </div>
 
           {property.description && (
-            <div>
+            <div style={{ marginBottom: 22 }}>
               <div style={{ fontSize: 11, fontWeight: 600, color: 'var(--ink-3)', textTransform: 'uppercase', letterSpacing: '0.1em', marginBottom: 8 }}>Descripción</div>
               <p style={{ fontSize: 13, color: 'var(--ink-2)', lineHeight: 1.6 }}>{property.description}</p>
             </div>
           )}
+
+          {/* Fotos */}
+          <div>
+            <div style={{ fontSize: 11, fontWeight: 600, color: 'var(--ink-3)', textTransform: 'uppercase', letterSpacing: '0.1em', marginBottom: 8 }}>Fotos</div>
+            <PhotoManager propertyId={property.id} onCoverChange={handleCover} />
+          </div>
         </div>
       </div>
     </>
@@ -312,6 +326,11 @@ export default function PropertiesView({ initialProperties, dollarRate = 0 }: { 
 
   function handleDelete(id: string) {
     setProperties(prev => prev.filter(p => p.id !== id))
+  }
+
+  function handleCoverChange(id: string, coverUrl: string | null) {
+    setProperties(prev => prev.map(p => p.id === id ? { ...p, photo_url: coverUrl } : p))
+    setDetailProperty(prev => prev && prev.id === id ? { ...prev, photo_url: coverUrl } : prev)
   }
 
   return (
@@ -509,6 +528,7 @@ export default function PropertiesView({ initialProperties, dollarRate = 0 }: { 
           property={detailProperty}
           dollarRate={dollarRate}
           onClose={() => setDetailProperty(null)}
+          onCoverChange={handleCoverChange}
         />
       )}
     </>

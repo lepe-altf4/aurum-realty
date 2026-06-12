@@ -1,6 +1,8 @@
 'use client'
-import { useState, useRef } from 'react'
+import { useState, useRef, useMemo, useEffect } from 'react'
 import { createClient } from '@/lib/supabase/client'
+import { validateImage } from '@/lib/images'
+import { uploadPhotos, syncCover } from '@/lib/property-photos'
 import type { Property } from '@/lib/types'
 
 const NEIGHBORHOODS = ['Palermo', 'Recoleta', 'Belgrano', 'Puerto Madero', 'San Telmo', 'Caballito', 'Villa Urquiza', 'Núñez', 'Almagro', 'Villa Crespo', 'Barracas', 'Otro']
@@ -21,42 +23,27 @@ export default function NewPropertyModal({ onClose, onCreated }: {
   const [status, setStatus] = useState<Property['status']>('Disponible')
   const [premium, setPremium] = useState(false)
   const [description, setDescription] = useState('')
-  const [imageFile, setImageFile] = useState<File | null>(null)
-  const [imagePreview, setImagePreview] = useState<string | null>(null)
+  const [files, setFiles] = useState<File[]>([])
+  const [dragOver, setDragOver] = useState(false)
   const [uploadingImage, setUploadingImage] = useState(false)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
   const fileInputRef = useRef<HTMLInputElement>(null)
 
-  function handleImageSelect(e: React.ChangeEvent<HTMLInputElement>) {
-    const file = e.target.files?.[0]
-    if (!file) return
-    if (!file.type.startsWith('image/')) { setError('El archivo debe ser una imagen (JPG, PNG, WEBP)'); return }
-    if (file.size > 5 * 1024 * 1024) { setError('La imagen no puede superar los 5 MB'); return }
-    setImageFile(file)
-    setError('')
-    const reader = new FileReader()
-    reader.onloadend = () => setImagePreview(reader.result as string)
-    reader.readAsDataURL(file)
+  // Previews de los archivos en buffer (se suben recién al crear la propiedad)
+  const previews = useMemo(() => files.map(f => ({ name: f.name, url: URL.createObjectURL(f) })), [files])
+  useEffect(() => () => { previews.forEach(p => URL.revokeObjectURL(p.url)) }, [previews])
+
+  function addFiles(list: FileList | File[]) {
+    const incoming = Array.from(list)
+    const errs = incoming.map(validateImage).filter(Boolean) as string[]
+    const valid = incoming.filter(f => !validateImage(f))
+    setError(errs.length ? errs.join(' · ') : '')
+    if (valid.length) setFiles(prev => [...prev, ...valid])
   }
 
-  async function uploadImage(propertyId: string): Promise<string | null> {
-    if (!imageFile) return null
-    setUploadingImage(true)
-    const supabase = createClient()
-    const ext = imageFile.name.split('.').pop()?.toLowerCase() || 'jpg'
-    const path = `${propertyId}.${ext}`
-    const { error: uploadErr } = await supabase.storage
-      .from('property-images')
-      .upload(path, imageFile, { upsert: true, contentType: imageFile.type })
-    if (uploadErr) {
-      setError(`Error al subir imagen: ${uploadErr.message}`)
-      setUploadingImage(false)
-      return null
-    }
-    const { data: urlData } = supabase.storage.from('property-images').getPublicUrl(path)
-    setUploadingImage(false)
-    return urlData.publicUrl
+  function removeFile(i: number) {
+    setFiles(prev => prev.filter((_, idx) => idx !== i))
   }
 
   async function handleSubmit(e: React.FormEvent) {
@@ -90,13 +77,19 @@ export default function NewPropertyModal({ onClose, onCreated }: {
     if (err) { setError(err.message); setLoading(false); return }
     if (!data) { setLoading(false); return }
 
-    // Upload image if one was selected
+    // Subir las fotos seleccionadas (si hay) y fijar la portada
     let finalPhotoUrl: string | null = null
-    if (imageFile) {
-      finalPhotoUrl = await uploadImage(data.id)
-      if (finalPhotoUrl) {
-        await supabase.from('properties').update({ photo_url: finalPhotoUrl }).eq('id', data.id)
+    if (files.length) {
+      setUploadingImage(true)
+      try {
+        const added = await uploadPhotos(data.id, files, 0)
+        finalPhotoUrl = added[0]?.url ?? null
+        await syncCover(data.id, finalPhotoUrl)
+      } catch (uploadErr) {
+        // La propiedad ya se creó; avisamos pero no la perdemos
+        setError(`Propiedad creada, pero falló la subida de fotos: ${(uploadErr as Error).message}`)
       }
+      setUploadingImage(false)
     }
 
     onCreated({ ...(data as Property), photo_url: finalPhotoUrl })
@@ -218,38 +211,45 @@ export default function NewPropertyModal({ onClose, onCreated }: {
               <textarea rows={3} value={description} onChange={e => setDescription(e.target.value)} placeholder="Detalles adicionales de la propiedad..." style={{ ...inp, resize: 'none', lineHeight: 1.5 }} />
             </div>
 
-            {/* Image upload */}
+            {/* Fotos */}
             <div>
-              <label style={lbl}>Foto principal</label>
+              <label style={lbl}>Fotos {files.length > 0 && <span style={{ color: 'var(--ink-4)' }}>· la primera es la portada</span>}</label>
               <input
                 ref={fileInputRef}
                 type="file"
-                accept="image/*"
-                onChange={handleImageSelect}
+                accept="image/jpeg,image/png,image/webp"
+                multiple
+                onChange={e => e.target.files && addFiles(e.target.files)}
                 style={{ display: 'none' }}
               />
-              {imagePreview ? (
-                <div style={{ position: 'relative', borderRadius: 'var(--radius)', overflow: 'hidden', border: '1px solid var(--border)', height: 160 }}>
-                  <img src={imagePreview} alt="Preview" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-                  <button
-                    type="button"
-                    onClick={() => { setImageFile(null); setImagePreview(null); if (fileInputRef.current) fileInputRef.current.value = '' }}
-                    style={{ position: 'absolute', top: 8, right: 8, width: 28, height: 28, borderRadius: '50%', background: 'rgba(36,25,17,.7)', border: 'none', color: '#fff', cursor: 'pointer', display: 'grid', placeItems: 'center' }}>
-                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M6 6l12 12M18 6 6 18"/></svg>
-                  </button>
-                  <div style={{ position: 'absolute', bottom: 8, left: 8, background: 'rgba(36,25,17,.65)', color: '#fff', fontSize: 10, padding: '3px 8px', borderRadius: 999, fontWeight: 600 }}>
-                    {imageFile?.name}
-                  </div>
+              <div
+                onClick={() => fileInputRef.current?.click()}
+                onDragOver={e => { e.preventDefault(); setDragOver(true) }}
+                onDragLeave={() => setDragOver(false)}
+                onDrop={e => { e.preventDefault(); setDragOver(false); if (e.dataTransfer.files.length) addFiles(e.dataTransfer.files) }}
+                style={{
+                  width: '100%', padding: '20px', borderRadius: 'var(--radius)',
+                  border: `2px dashed ${dragOver ? 'var(--gold)' : 'var(--border)'}`,
+                  background: dragOver ? 'var(--gold-soft)' : 'var(--surface)',
+                  cursor: 'pointer', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6, textAlign: 'center',
+                }}>
+                <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="var(--ink-3)" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="m21 15-5-5L5 21"/></svg>
+                <div style={{ fontSize: 13, color: 'var(--ink-2)', fontWeight: 600 }}>Arrastrá fotos o hacé clic</div>
+                <div style={{ fontSize: 11, color: 'var(--ink-4)' }}>JPG, PNG o WEBP · varias a la vez · se comprimen solas</div>
+              </div>
+
+              {previews.length > 0 && (
+                <div style={{ marginTop: 10, display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(96px, 1fr))', gap: 8 }}>
+                  {previews.map((p, i) => (
+                    <div key={p.url} style={{ position: 'relative', borderRadius: 'var(--radius)', overflow: 'hidden', border: i === 0 ? '2px solid var(--gold)' : '1px solid var(--border)', aspectRatio: '4 / 3', background: 'var(--surface)' }}>
+                      <img src={p.url} alt={p.name} style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }} />
+                      {i === 0 && <div style={{ position: 'absolute', top: 4, left: 4, padding: '1px 6px', borderRadius: 999, background: 'var(--gold)', color: '#fff', fontSize: 8.5, fontWeight: 700, letterSpacing: '0.06em' }}>PORTADA</div>}
+                      <button type="button" onClick={() => removeFile(i)} style={{ position: 'absolute', top: 4, right: 4, width: 22, height: 22, borderRadius: '50%', background: 'rgba(36,25,17,.7)', border: 'none', color: '#fff', cursor: 'pointer', display: 'grid', placeItems: 'center' }}>
+                        <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><path d="M6 6l12 12M18 6 6 18"/></svg>
+                      </button>
+                    </div>
+                  ))}
                 </div>
-              ) : (
-                <button
-                  type="button"
-                  onClick={() => fileInputRef.current?.click()}
-                  style={{ width: '100%', padding: '24px', borderRadius: 'var(--radius)', border: '2px dashed var(--border)', background: 'var(--surface)', cursor: 'pointer', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 8 }}>
-                  <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="var(--ink-3)" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="m21 15-5-5L5 21"/></svg>
-                  <div style={{ fontSize: 13, color: 'var(--ink-3)', fontWeight: 500 }}>Hacé clic para subir imagen</div>
-                  <div style={{ fontSize: 11, color: 'var(--ink-4)' }}>JPG, PNG, WEBP — máx. 5 MB</div>
-                </button>
               )}
             </div>
 
@@ -279,7 +279,7 @@ export default function NewPropertyModal({ onClose, onCreated }: {
               cursor: loading || uploadingImage || !address.trim() ? 'not-allowed' : 'pointer',
               opacity: loading || uploadingImage || !address.trim() ? 0.65 : 1,
             }}>
-              {uploadingImage ? 'Subiendo imagen…' : loading ? 'Guardando…' : (
+              {uploadingImage ? 'Subiendo fotos…' : loading ? 'Guardando…' : (
                 <>
                   <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round"><path d="M12 5v14M5 12h14"/></svg>
                   Agregar propiedad
