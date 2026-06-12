@@ -1,13 +1,26 @@
-import { createClient } from '@/lib/supabase/server'
+import { createAdminClient } from '@/lib/supabase/admin'
 import { ensureFreshDollarRate } from '@/lib/dollar'
+import { getViewer, leadOwnerId } from '@/lib/viewer'
 import ExecutiveDashboard from '@/components/dashboard/executive-dashboard'
-import type { Organization } from '@/lib/types'
+import type { Organization, Lead } from '@/lib/types'
 
 export const dynamic = 'force-dynamic'
 
 export default async function DashboardPage() {
-  // Sesión del usuario: RLS limita los leads visibles según rol/dueño.
-  const supabase = await createClient()
+  const { agent: viewer, isAdmin } = await getViewer()
+
+  let supabase
+  try {
+    supabase = createAdminClient()
+  } catch (err: unknown) {
+    const msg = err instanceof Error ? err.message : String(err)
+    return (
+      <div className="p-8 text-red-600">
+        <h2 className="text-xl font-bold mb-2">Configuration Error</h2>
+        <p className="font-mono text-sm">{msg}</p>
+      </div>
+    )
+  }
 
   const [leadsRes, agentsRes, orgRes, propsRes] = await Promise.all([
     supabase
@@ -22,12 +35,16 @@ export default async function DashboardPage() {
     console.error('[DashboardPage] leads query error:', leadsRes.error)
   }
 
+  // El Admin ve los números de todo el equipo; cada agente, los suyos.
+  const all = (leadsRes.data ?? []) as Lead[]
+  const visible = isAdmin ? all : all.filter(l => leadOwnerId(l) === viewer?.id)
+
   // Cotización automática: si el último update tiene +6hs, refresca de dolarapi.
   const org = await ensureFreshDollarRate(orgRes.data as Organization | null)
 
   return (
     <ExecutiveDashboard
-      leads={leadsRes.data ?? []}
+      leads={visible}
       agents={agentsRes.data ?? []}
       dollarRate={org?.dollar_rate ?? 1200}
       dollarUpdatedAt={org?.dollar_rate_updated_at ?? null}
