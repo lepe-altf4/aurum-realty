@@ -5,7 +5,13 @@ import { validateImage } from '@/lib/images'
 import { uploadPhotos, syncCover } from '@/lib/property-photos'
 import type { Property } from '@/lib/types'
 
-const NEIGHBORHOODS = ['Palermo', 'Recoleta', 'Belgrano', 'Puerto Madero', 'San Telmo', 'Caballito', 'Villa Urquiza', 'Núñez', 'Almagro', 'Villa Crespo', 'Barracas', 'Otro']
+// Localidades del Alto Valle + barrios/zonas que ya usan las propiedades cargadas.
+// El campo es de texto libre: estas son solo sugerencias.
+const ZONE_SUGGESTIONS = [
+  'Neuquén Capital', 'Cipolletti', 'Centenario', 'Plottier', 'Confluencia',
+  'Cinco Saltos', 'Allen', 'General Roca',
+  'Centro', 'Área Centro Este', 'Área Centro Oeste', 'Río Grande', 'San Pablo',
+]
 
 export default function NewPropertyModal({ onClose, onCreated }: {
   onClose: () => void
@@ -134,11 +140,17 @@ export default function NewPropertyModal({ onClose, onCreated }: {
 
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
               <div>
-                <label style={lbl}>Barrio</label>
-                <select value={neighborhood} onChange={e => setNeighborhood(e.target.value)} style={{ ...inp, appearance: 'none', cursor: 'pointer' }}>
-                  <option value="">Seleccionar barrio</option>
-                  {NEIGHBORHOODS.map(n => <option key={n} value={n}>{n}</option>)}
-                </select>
+                <label style={lbl}>Barrio / Localidad</label>
+                <input
+                  value={neighborhood}
+                  onChange={e => setNeighborhood(e.target.value)}
+                  list="barrio-options"
+                  placeholder="Ej: Neuquén Capital, Cipolletti…"
+                  style={inp}
+                />
+                <datalist id="barrio-options">
+                  {ZONE_SUGGESTIONS.map(n => <option key={n} value={n} />)}
+                </datalist>
               </div>
               <div>
                 <label style={lbl}>Tipo</label>
