@@ -61,6 +61,13 @@ create index if not exists activities_created_idx   on public.activities(created
 create index if not exists properties_status_idx    on public.properties(status);
 
 -- ──────────────────────────────────────────────────────────────
+-- 5. Limpieza: bucket viejo `property-images` (reemplazado por
+--    `property-photos` en la migración 007 + storage SQL)
+-- ──────────────────────────────────────────────────────────────
+delete from storage.objects where bucket_id = 'property-images';
+delete from storage.buckets where id = 'property-images';
+
+-- ──────────────────────────────────────────────────────────────
 -- VERIFICACIÓN — policies por tabla (revisar que las "Auth ..."
 -- de stages/org/activities-delete ya no estén)
 -- ──────────────────────────────────────────────────────────────
