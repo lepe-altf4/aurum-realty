@@ -1,12 +1,16 @@
+import { redirect } from 'next/navigation'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { getViewer, leadOwnerId } from '@/lib/viewer'
 import SalesPanel from '@/components/sales/sales-panel'
-import type { Lead } from '@/lib/types'
+import type { Lead, Organization } from '@/lib/types'
 
 export const dynamic = 'force-dynamic'
 
 export default async function SalesPage() {
   const { agent: viewer, isAdmin } = await getViewer()
+
+  // El Panel de Ventas es la pantalla operativa del agente. El Admin va al Ejecutivo.
+  if (isAdmin) redirect('/dashboard')
 
   let supabase
   try {
@@ -21,29 +25,28 @@ export default async function SalesPage() {
     )
   }
 
-  const [leadsRes, stagesRes, agentsRes] = await Promise.all([
+  const [leadsRes, stagesRes, orgRes] = await Promise.all([
     supabase
       .from('leads')
       .select('*, stage:pipeline_stages(id,name,position,key), property:properties(id,address,price_usd,price_ars,currency_listing), agent:agents!agent_id(id,name,initials)')
       .order('created_at', { ascending: false }),
     supabase.from('pipeline_stages').select('*').order('position', { ascending: true }),
-    supabase.from('agents').select('*').order('name'),
+    supabase.from('organization').select('dollar_rate').limit(1).single(),
   ])
 
   if (leadsRes.error) {
     console.error('[SalesPage] leads query error:', leadsRes.error)
   }
 
-  // El Admin ve todo; cada agente, solo sus leads (filtro server-side).
+  // Cada agente ve solo sus leads (filtro server-side).
   const all = (leadsRes.data ?? []) as Lead[]
-  const visible = isAdmin ? all : all.filter(l => leadOwnerId(l) === viewer?.id)
+  const visible = all.filter(l => leadOwnerId(l) === viewer?.id)
 
   return (
     <SalesPanel
       leads={visible}
       stages={stagesRes.data ?? []}
-      agents={agentsRes.data ?? []}
-      isAdmin={isAdmin}
+      dollarRate={(orgRes.data as Pick<Organization, 'dollar_rate'> | null)?.dollar_rate ?? 1200}
     />
   )
 }

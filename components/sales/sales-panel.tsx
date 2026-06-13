@@ -4,8 +4,8 @@ import Topbar from '@/components/ui/topbar'
 import { Tag } from '@/components/ui/tags'
 import LeadDrawer from '@/components/leads/lead-drawer'
 import { createClient } from '@/lib/supabase/client'
-import type { Lead, PipelineStage, Agent } from '@/lib/types'
-import { fmtUSD } from '@/lib/format'
+import type { Lead, PipelineStage } from '@/lib/types'
+import { compactNum } from '@/lib/format'
 
 // ── icon helpers ──────────────────────────────────────────────────────────────
 function WaIcon({ size = 14 }: { size?: number }) {
@@ -44,64 +44,10 @@ function IconBtn({ title, children, color, onClick }: { title: string; children:
   )
 }
 
-// ⚠ Estimación fija: el "días promedio por etapa" real necesita historial de
-// transiciones que hoy no se registra. Queda marcado para definir.
-const STAGE_AVG_DAYS: Record<string, number> = { consulta: 4, visita: 7, oferta: 12, reserva: 9, escritura: 18 }
-
 const waLink = (phone?: string | null) => `https://wa.me/${(phone || '').replace(/\D/g, '')}`
+const usdOf = (l: Lead, rate: number) => l.amount ? (l.currency === 'USD' ? l.amount : l.amount / rate) : 0
 
-// ── overdue modal (lo usa el Admin para "ver todos") ───────────────────────────
-function OverdueModal({ leads, onClose, onOpenLead }: { leads: Lead[]; onClose: () => void; onOpenLead: (l: Lead) => void }) {
-  return (
-    <>
-      <div onClick={onClose} style={{ position: 'fixed', inset: 0, background: 'rgba(36,25,17,0.4)', backdropFilter: 'blur(3px)', zIndex: 60 }} />
-      <aside style={{
-        position: 'fixed', top: 0, right: 0, bottom: 0, width: 440,
-        background: '#fff', borderLeft: '1px solid var(--border)', zIndex: 70,
-        display: 'flex', flexDirection: 'column', boxShadow: '0 0 40px rgba(36,25,17,.16)',
-        animation: 'slideIn .22s cubic-bezier(.2,.7,.2,1)',
-      }}>
-        <style>{`@keyframes slideIn { from { transform: translateX(20px); opacity:0 } to { transform:none; opacity:1 } }`}</style>
-        <div style={{ padding: '18px 22px 14px', borderBottom: '1px solid var(--border)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-          <div>
-            <div style={{ fontSize: 10.5, fontWeight: 600, letterSpacing: '0.12em', textTransform: 'uppercase', color: 'var(--danger)' }}>ATRASADOS · CONTACTAR YA</div>
-            <h2 style={{ fontSize: 18, fontWeight: 700, fontFamily: 'var(--font-jakarta)', marginTop: 3 }}>{leads.length} leads sin contacto</h2>
-          </div>
-          <button onClick={onClose} style={{ width: 32, height: 32, display: 'grid', placeItems: 'center', border: '1px solid var(--border)', borderRadius: 'var(--radius-sm)', background: '#fff', cursor: 'pointer' }}>
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round"><path d="M6 6l12 12M18 6 6 18"/></svg>
-          </button>
-        </div>
-        <div style={{ flex: 1, overflowY: 'auto' }}>
-          {[...leads].sort((a, b) => b.days_without_contact - a.days_without_contact).map(lead => (
-            <div key={lead.id} style={{ padding: '14px 22px', borderBottom: '1px solid var(--border)', display: 'flex', alignItems: 'center', gap: 12 }}>
-              <div style={{ width: 38, height: 38, borderRadius: '50%', background: 'var(--danger-soft)', display: 'grid', placeItems: 'center', flexShrink: 0, border: '1px solid #E9CDC9' }}>
-                <span style={{ fontWeight: 700, fontSize: 13, color: 'var(--danger)' }}>{lead.name.slice(0, 2).toUpperCase()}</span>
-              </div>
-              <div style={{ flex: 1, minWidth: 0 }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                  <span style={{ fontWeight: 600, fontSize: 13 }}>{lead.name}</span>
-                  {lead.hot && <Tag variant="gold">HOT</Tag>}
-                </div>
-                <div style={{ fontSize: 12, color: 'var(--ink-3)', marginTop: 2, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                  {lead.property?.address || 'Sin propiedad'} · {lead.stage?.name}
-                </div>
-              </div>
-              <div style={{ flexShrink: 0, display: 'flex', alignItems: 'center', gap: 8 }}>
-                <span className="num" style={{ fontSize: 13, fontWeight: 700, color: 'var(--danger)', minWidth: 28 }}>{lead.days_without_contact}d</span>
-                <IconBtn title="WhatsApp" color="var(--success)" onClick={() => window.open(waLink(lead.phone), '_blank')}><WaIcon size={13} /></IconBtn>
-                <IconBtn title="Ver detalles" onClick={() => { onClose(); onOpenLead(lead) }}>
-                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round"><path d="M5 12h14M13 6l6 6-6 6"/></svg>
-                </IconBtn>
-              </div>
-            </div>
-          ))}
-        </div>
-      </aside>
-    </>
-  )
-}
-
-// ── calendar view (ambos roles) ───────────────────────────────────────────────
+// ── calendar view ──────────────────────────────────────────────────────────────
 function CalendarView({ leads, onOpenLead }: { leads: Lead[]; onOpenLead: (l: Lead) => void }) {
   const [offset, setOffset] = useState(0)
   const today = new Date()
@@ -189,84 +135,55 @@ function CalendarView({ leads, onOpenLead }: { leads: Lead[]; onOpenLead: (l: Le
   )
 }
 
-// ── KPI mini-card ──────────────────────────────────────────────────────────────
-function Kpi({ label, value, sub, color }: { label: string; value: string | number; sub?: string; color?: string }) {
+// ── chip de resumen (Atrasados / Hoy / Semana) ──────────────────────────────────
+function StatChip({ label, value, tone }: { label: string; value: number; tone: 'danger' | 'gold' | 'ink' }) {
+  const color = tone === 'danger' ? 'var(--danger)' : tone === 'gold' ? 'var(--gold)' : 'var(--ink)'
+  const bg = tone === 'danger' ? 'var(--danger-soft)' : tone === 'gold' ? 'var(--gold-soft)' : 'var(--surface)'
+  const border = tone === 'danger' ? '#E9CDC9' : tone === 'gold' ? '#E2D4B5' : 'var(--border)'
   return (
-    <div style={{ background: '#fff', border: '1px solid var(--border)', borderRadius: 'var(--radius-lg)', padding: '18px 20px' }}>
-      <div style={{ fontSize: 11, letterSpacing: '0.14em', textTransform: 'uppercase', color: 'var(--ink-3)', fontWeight: 600 }}>{label}</div>
-      <div className="num" style={{ fontFamily: 'var(--font-jakarta)', fontWeight: 700, fontSize: 30, marginTop: 8, color: color || 'var(--ink)' }}>{value}</div>
-      {sub && <div style={{ fontSize: 12, color: 'var(--ink-3)', marginTop: 8 }}>{sub}</div>}
+    <div style={{ flex: 1, background: bg, border: `1px solid ${border}`, borderRadius: 'var(--radius-lg)', padding: '14px 18px', display: 'flex', alignItems: 'center', gap: 14 }}>
+      <span className="num" style={{ fontFamily: 'var(--font-jakarta)', fontWeight: 800, fontSize: 28, color, lineHeight: 1 }}>{value}</span>
+      <span style={{ fontSize: 12.5, fontWeight: 600, color: 'var(--ink-2)' }}>{label}</span>
     </div>
   )
 }
 
 // ── main ───────────────────────────────────────────────────────────────────────
-export default function SalesPanel({ leads: initialLeads, stages, agents, isAdmin = false }: {
+export default function SalesPanel({ leads: initialLeads, stages, dollarRate = 1200 }: {
   leads: Lead[]
   stages: PipelineStage[]
-  agents: Agent[]
-  isAdmin?: boolean
+  dollarRate?: number
 }) {
   const [activeTab, setActiveTab] = useState<'panel' | 'calendario'>('panel')
-  const [showOverdue, setShowOverdue] = useState(false)
   const [openLead, setOpenLead] = useState<Lead | null>(null)
   const [leads, setLeads] = useState<Lead[]>(initialLeads)
   const [contactBusyId, setContactBusyId] = useState<string | null>(null)
-  const [showAnalysis, setShowAnalysis] = useState(false)
   useEffect(() => { setLeads(initialLeads) }, [initialLeads])
 
-  const totalLeads = leads.length
   const todayStr = new Date().toISOString().slice(0, 10)
-  const overdue = useMemo(() => leads.filter(l => l.days_without_contact >= 5), [leads])
-  const closedLeads = useMemo(() => leads.filter(l => l.stage?.key === 'escritura'), [leads])
-  const atRiskUSD = useMemo(() => overdue.reduce((s, l) => s + (l.amount || 0), 0), [overdue])
+  const in7Str = useMemo(() => {
+    const d = new Date(); d.setDate(d.getDate() + 7); return d.toISOString().slice(0, 10)
+  }, [])
 
+  const overdue = useMemo(() => leads.filter(l => l.days_without_contact >= 5), [leads])
   const todayTasks = useMemo(
     () => leads.filter(l => l.next_action_date && l.next_action_date.slice(0, 10) === todayStr),
     [leads, todayStr]
   )
-  const overdueTasks = useMemo(
-    () => leads.filter(l => l.next_action_date && l.next_action_date.slice(0, 10) < todayStr && l.stage?.key !== 'escritura'),
-    [leads, todayStr]
+
+  // Próximas acciones: cualquier next_action_date entre mañana y +7 días (todos los tipos).
+  const upcoming = useMemo(
+    () => leads
+      .filter(l => {
+        if (!l.next_action_date || l.stage?.key === 'escritura') return false
+        const d = l.next_action_date.slice(0, 10)
+        return d > todayStr && d <= in7Str
+      })
+      .sort((a, b) => (a.next_action_date! < b.next_action_date! ? -1 : 1)),
+    [leads, todayStr, in7Str]
   )
 
-  // Cierres del mes (por closed_at real; fallback updated_at)
-  const closedThisMonth = useMemo(() => {
-    const monthStart = new Date(); monthStart.setDate(1); monthStart.setHours(0, 0, 0, 0)
-    return closedLeads.filter(l => new Date(l.closed_at ?? l.updated_at) >= monthStart)
-  }, [closedLeads])
-  const conversionGlobal = totalLeads > 0 ? Math.round((closedLeads.length / totalLeads) * 100) : 0
-
-  const stageCounts = useMemo(() => {
-    const map: Record<string, number> = {}
-    for (const s of stages) map[s.key] = 0
-    for (const l of leads) if (l.stage?.key) map[l.stage.key] = (map[l.stage.key] || 0) + 1
-    return map
-  }, [leads, stages])
-
-  const bottleneckKey = useMemo(() => {
-    let maxScore = 0; let key = ''
-    for (const s of stages) {
-      const score = (stageCounts[s.key] || 0) * (STAGE_AVG_DAYS[s.key] || 1)
-      if (score > maxScore) { maxScore = score; key = s.key }
-    }
-    return key
-  }, [stages, stageCounts])
-  const firstStageCount = stages[0] ? (stageCounts[stages[0].key] || 0) : 1
-  const maxBarCount = Math.max(...stages.map(s => stageCounts[s.key] || 0), 1)
-
-  // Efectividad / ranking real por agente
-  const agentRanking = useMemo(() => {
-    return agents.map(a => {
-      const assigned = leads.filter(l => (l.owner_id ?? l.agent_id) === a.id)
-      const closed = assigned.filter(l => l.stage?.key === 'escritura')
-      const over = assigned.filter(l => l.days_without_contact >= 5)
-      const pct = assigned.length ? Math.round((closed.length / assigned.length) * 100) : 0
-      return { id: a.id, name: a.name, initials: a.initials || a.name.slice(0, 2).toUpperCase(), assigned: assigned.length, closed: closed.length, over: over.length, pct }
-    }).filter(a => a.assigned > 0).sort((x, y) => y.pct - x.pct || y.closed - x.closed)
-  }, [agents, leads])
-
-  // Lista accionable del agente: atrasados + tareas de hoy (sin duplicar)
+  // Lista accionable: atrasados + tareas de hoy, sin duplicar, por urgencia.
   const actionItems = useMemo(() => {
     const map = new Map<string, Lead>()
     for (const l of overdue) map.set(l.id, l)
@@ -274,12 +191,19 @@ export default function SalesPanel({ leads: initialLeads, stages, agents, isAdmi
     return Array.from(map.values()).sort((a, b) => b.days_without_contact - a.days_without_contact)
   }, [overdue, todayTasks])
 
+  // Mi pipeline por etapa: cantidad + valor USD propio.
+  const myPipeline = useMemo(() => stages.map(s => {
+    const stl = leads.filter(l => l.stage?.key === s.key)
+    const usd = stl.reduce((sum, l) => sum + usdOf(l, dollarRate), 0)
+    return { key: s.key, name: s.name, count: stl.length, usd }
+  }), [stages, leads, dollarRate])
+  const pipelineTotalUSD = useMemo(() => myPipeline.reduce((s, p) => s + p.usd, 0), [myPipeline])
+
   function handleLeadUpdate(updated: Lead) {
     setOpenLead(updated)
     setLeads(prev => prev.map(l => l.id === updated.id ? updated : l))
   }
 
-  // Marcar contacto inline (mismo efecto que el botón del drawer)
   async function markContacted(lead: Lead, e?: React.MouseEvent) {
     e?.stopPropagation()
     if (contactBusyId) return
@@ -308,44 +232,6 @@ export default function SalesPanel({ leads: initialLeads, stages, agents, isAdmi
     </div>
   )
 
-  // ── Embudo (compartido: bloque del cockpit y del análisis del agente) ──
-  const funnelCard = (
-    <Card>
-      <CardHeader>
-        <h3 style={{ fontSize: 14, fontWeight: 700, fontFamily: 'var(--font-jakarta)' }}>Embudo de ventas</h3>
-        <span style={{ fontSize: 11, color: 'var(--ink-3)' }}>cuello de botella resaltado</span>
-      </CardHeader>
-      <div>
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 2fr 60px 70px', padding: '8px 20px', fontSize: 11, color: 'var(--ink-3)', fontWeight: 600, letterSpacing: '0.06em', textTransform: 'uppercase', borderBottom: '1px solid var(--border)' }}>
-          <span>Etapa</span><span>Distribución</span>
-          <span style={{ textAlign: 'right' }}>Leads</span>
-          <span style={{ textAlign: 'right' }}>Conv %</span>
-        </div>
-        {stages.map((s, i) => {
-          const count = stageCounts[s.key] || 0
-          const convPct = firstStageCount > 0 ? Math.round((count / firstStageCount) * 100) : 0
-          const barW = maxBarCount > 0 ? Math.max(4, (count / maxBarCount) * 100) : 4
-          const isBottleneck = s.key === bottleneckKey
-          return (
-            <div key={s.id} style={{ display: 'grid', gridTemplateColumns: '1fr 2fr 60px 70px', padding: '11px 20px', alignItems: 'center', borderBottom: i < stages.length - 1 ? '1px solid var(--border)' : undefined, background: isBottleneck ? 'var(--danger-soft)' : 'transparent', boxShadow: isBottleneck ? 'inset 3px 0 0 var(--danger)' : 'none' }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                <span style={{ fontSize: 13, fontWeight: isBottleneck ? 700 : 500, color: isBottleneck ? 'var(--danger)' : 'var(--ink)' }}>{s.name}</span>
-                {isBottleneck && <span style={{ fontSize: 8.5, fontWeight: 700, letterSpacing: '0.04em', textTransform: 'uppercase', color: '#fff', background: 'var(--danger)', borderRadius: 999, padding: '1px 6px' }}>Cuello</span>}
-              </div>
-              <div style={{ paddingRight: 12 }}>
-                <div style={{ height: 8, background: 'var(--surface-2)', borderRadius: 3, overflow: 'hidden' }}>
-                  <div style={{ height: '100%', width: `${barW}%`, background: isBottleneck ? 'var(--danger)' : 'var(--gold)', borderRadius: 3, opacity: isBottleneck ? 1 : 0.5 }} />
-                </div>
-              </div>
-              <div className="num" style={{ textAlign: 'right', fontWeight: 600, fontSize: 13, color: isBottleneck ? 'var(--danger)' : 'var(--ink)' }}>{count}</div>
-              <div className="num" style={{ textAlign: 'right', fontSize: 12, fontWeight: 600, color: isBottleneck ? 'var(--danger)' : 'var(--ink-3)' }}>{convPct}%</div>
-            </div>
-          )
-        })}
-      </div>
-    </Card>
-  )
-
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
       <Topbar title="Panel de Ventas" crumb="CRM" search={false} right={tabBar} />
@@ -354,153 +240,136 @@ export default function SalesPanel({ leads: initialLeads, stages, agents, isAdmi
 
         {activeTab === 'calendario' ? (
           <CalendarView leads={leads} onOpenLead={setOpenLead} />
-        ) : isAdmin ? (
-          /* ════════ COCKPIT DEL DUEÑO (Admin) ════════ */
+        ) : (
           <>
-            {/* Salud del equipo */}
-            <div className="stat-grid-5" style={{ display: 'grid', gridTemplateColumns: 'repeat(4,1fr)', gap: 14 }}>
-              <Kpi label="Cierres del mes" value={closedThisMonth.length} sub="escrituras este mes" color="var(--success)" />
-              <Kpi label="Conversión global" value={`${conversionGlobal}%`} sub="leads → escritura" />
-              <Kpi label="Pipeline en riesgo" value={fmtUSD(atRiskUSD)} sub={`${overdue.length} leads atrasados`} color={atRiskUSD > 0 ? 'var(--danger)' : 'var(--ink)'} />
-              <Kpi label="Leads activos" value={totalLeads} sub={`${todayTasks.length} tareas hoy`} />
+            {/* ── Arriba: 3 chips de resumen ── */}
+            <div style={{ display: 'flex', gap: 14, flexWrap: 'wrap' }}>
+              <StatChip label="Atrasados (+5 días)" value={overdue.length} tone="danger" />
+              <StatChip label="Tareas para hoy" value={todayTasks.length} tone="gold" />
+              <StatChip label="Próximos 7 días" value={upcoming.length} tone="ink" />
             </div>
 
-            {/* Ranking del equipo */}
+            {/* ── Centro: tareas de hoy/vencidas (izq) + próximas acciones (der) ── */}
+            <div className="grid-2col-resp" style={{ display: 'grid', gridTemplateColumns: '1.4fr 1fr', gap: 16 }}>
+
+              {/* Izquierda — Para hacer hoy */}
+              <Card>
+                <CardHeader>
+                  <h3 style={{ fontSize: 14, fontWeight: 700, fontFamily: 'var(--font-jakarta)' }}>Para hacer hoy</h3>
+                  <Tag variant="default">{actionItems.length}</Tag>
+                </CardHeader>
+                <div>
+                  {actionItems.length === 0 ? (
+                    <div style={{ padding: '40px 20px', textAlign: 'center', color: 'var(--ink-3)', fontSize: 13 }}>
+                      ¡Estás al día! No tenés atrasados ni tareas para hoy.
+                    </div>
+                  ) : actionItems.map(lead => {
+                    const isOver = lead.days_without_contact >= 5
+                    const taskTime = lead.next_action_date?.includes('T') ? lead.next_action_date.slice(11, 16) : null
+                    return (
+                      <div key={lead.id} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '12px 20px', borderBottom: '1px solid var(--border)', cursor: 'pointer' }} onClick={() => setOpenLead(lead)}>
+                        <Avatar initials={lead.name.slice(0, 2).toUpperCase()} size={34} color={isOver ? 'var(--danger-soft)' : 'var(--gold-soft)'} />
+                        <div style={{ flex: 1, minWidth: 0 }}>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                            <span style={{ fontSize: 13.5, fontWeight: 600 }}>{lead.name}</span>
+                            {lead.hot && <Tag variant="gold">HOT</Tag>}
+                            {isOver
+                              ? <span style={{ fontSize: 11, fontWeight: 700, color: 'var(--danger)' }}>{lead.days_without_contact}d sin contacto</span>
+                              : taskTime && <span style={{ fontSize: 11, color: 'var(--ink-4)' }}>· hoy {taskTime}</span>}
+                          </div>
+                          <div style={{ fontSize: 12, color: 'var(--ink-3)', marginTop: 2, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                            {lead.stage?.name || 'Sin etapa'}{lead.property?.address ? ` · ${lead.property.address}` : ''}
+                          </div>
+                        </div>
+                        <div style={{ display: 'flex', gap: 6, flexShrink: 0 }} onClick={e => e.stopPropagation()}>
+                          <IconBtn title="WhatsApp" color="var(--success)" onClick={() => window.open(waLink(lead.phone), '_blank')}><WaIcon /></IconBtn>
+                          <IconBtn title="Llamar" onClick={() => lead.phone && window.open(`tel:${lead.phone.replace(/\D/g, '')}`)}><PhoneIcon /></IconBtn>
+                          <button
+                            title="Marcar como contactado"
+                            onClick={(e) => markContacted(lead, e)}
+                            disabled={contactBusyId === lead.id}
+                            style={{
+                              display: 'inline-flex', alignItems: 'center', gap: 6, padding: '0 12px', height: 32, borderRadius: 6,
+                              border: '1px solid var(--border)', background: 'var(--ink)', color: '#fff', fontSize: 12, fontWeight: 600,
+                              cursor: contactBusyId === lead.id ? 'wait' : 'pointer', whiteSpace: 'nowrap',
+                            }}>
+                            <CheckIcon size={13} /> Hecho
+                          </button>
+                        </div>
+                      </div>
+                    )
+                  })}
+                </div>
+              </Card>
+
+              {/* Derecha — Próximos 7 días */}
+              <Card>
+                <CardHeader>
+                  <h3 style={{ fontSize: 14, fontWeight: 700, fontFamily: 'var(--font-jakarta)' }}>Próximos 7 días</h3>
+                  <Tag variant="default">{upcoming.length}</Tag>
+                </CardHeader>
+                <div>
+                  {upcoming.length === 0 ? (
+                    <div style={{ padding: '40px 20px', textAlign: 'center', color: 'var(--ink-3)', fontSize: 13 }}>
+                      No tenés acciones agendadas para esta semana.
+                    </div>
+                  ) : upcoming.map((lead, i) => {
+                    const d = new Date(lead.next_action_date!)
+                    const dayLabel = d.toLocaleDateString('es-AR', { weekday: 'short', day: '2-digit', month: 'short' })
+                    const time = lead.next_action_date!.includes('T') ? lead.next_action_date!.slice(11, 16) : null
+                    return (
+                      <div key={lead.id} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '11px 20px', borderBottom: i < upcoming.length - 1 ? '1px solid var(--border)' : undefined, cursor: 'pointer' }} onClick={() => setOpenLead(lead)}>
+                        <div style={{ width: 44, flexShrink: 0, textAlign: 'center' }}>
+                          <div style={{ fontSize: 10.5, fontWeight: 700, color: 'var(--gold)', textTransform: 'capitalize' }}>{dayLabel}</div>
+                          {time && <div className="num" style={{ fontSize: 11, color: 'var(--ink-3)', marginTop: 1 }}>{time}</div>}
+                        </div>
+                        <div style={{ flex: 1, minWidth: 0 }}>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                            <span style={{ fontSize: 13, fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{lead.name}</span>
+                            {lead.hot && <Tag variant="gold">HOT</Tag>}
+                          </div>
+                          <div style={{ fontSize: 12, color: 'var(--ink-3)', marginTop: 2, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                            {lead.stage?.name || 'Sin etapa'}{lead.property?.address ? ` · ${lead.property.address}` : ''}
+                          </div>
+                        </div>
+                        <IconBtn title="WhatsApp" color="var(--success)" onClick={(e) => { e.stopPropagation(); window.open(waLink(lead.phone), '_blank') }}><WaIcon /></IconBtn>
+                      </div>
+                    )
+                  })}
+                </div>
+              </Card>
+            </div>
+
+            {/* ── Abajo: mi pipeline por etapa (chips compactos con $ propio) ── */}
             <Card>
               <CardHeader>
-                <h3 style={{ fontSize: 14, fontWeight: 700, fontFamily: 'var(--font-jakarta)' }}>Ranking del equipo</h3>
-                {overdue.length > 0 && (
-                  <button onClick={() => setShowOverdue(true)} style={{ fontSize: 11, fontWeight: 600, color: 'var(--danger)', background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}>Ver atrasados →</button>
-                )}
+                <h3 style={{ fontSize: 14, fontWeight: 700, fontFamily: 'var(--font-jakarta)' }}>Mi pipeline</h3>
+                <span style={{ fontSize: 12, color: 'var(--ink-3)' }}>
+                  {leads.length} {leads.length === 1 ? 'lead' : 'leads'} · USD {compactNum(pipelineTotalUSD)}
+                </span>
               </CardHeader>
-              <div>
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 90px 90px 90px', padding: '8px 20px', fontSize: 11, color: 'var(--ink-3)', fontWeight: 600, letterSpacing: '0.06em', textTransform: 'uppercase', borderBottom: '1px solid var(--border)' }}>
-                  <span>Agente</span>
-                  <span style={{ textAlign: 'right' }}>Leads</span>
-                  <span style={{ textAlign: 'right' }}>Conv %</span>
-                  <span style={{ textAlign: 'right' }}>Atrasados</span>
-                </div>
-                {agentRanking.length === 0 ? (
-                  <div style={{ padding: '24px 20px', textAlign: 'center', color: 'var(--ink-3)', fontSize: 13 }}>Sin leads asignados todavía</div>
-                ) : agentRanking.map((a, i) => (
-                  <div key={a.id} style={{ display: 'grid', gridTemplateColumns: '1fr 90px 90px 90px', padding: '11px 20px', alignItems: 'center', borderBottom: i < agentRanking.length - 1 ? '1px solid var(--border)' : undefined }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                      <Avatar initials={a.initials} size={30} />
-                      <span style={{ fontSize: 13, fontWeight: 600 }}>{a.name}</span>
+              <div style={{ padding: '16px 20px', display: 'flex', gap: 10, flexWrap: 'wrap' }}>
+                {myPipeline.map(p => (
+                  <div key={p.key} style={{
+                    flex: '1 1 140px', minWidth: 130, background: 'var(--surface)', border: '1px solid var(--border)',
+                    borderRadius: 'var(--radius)', padding: '12px 14px',
+                  }}>
+                    <div style={{ fontSize: 11, fontWeight: 600, color: 'var(--ink-3)', letterSpacing: '0.04em', textTransform: 'uppercase' }}>{p.name}</div>
+                    <div style={{ display: 'flex', alignItems: 'baseline', gap: 8, marginTop: 6 }}>
+                      <span className="num" style={{ fontFamily: 'var(--font-jakarta)', fontWeight: 700, fontSize: 22, color: 'var(--ink)' }}>{p.count}</span>
+                      <span className="num" style={{ fontSize: 12, fontWeight: 600, color: 'var(--gold)' }}>USD {compactNum(p.usd)}</span>
                     </div>
-                    <div className="num" style={{ textAlign: 'right', fontSize: 13, color: 'var(--ink-2)' }}>{a.assigned}</div>
-                    <div className="num" style={{ textAlign: 'right', fontSize: 13, fontWeight: 700, color: 'var(--gold)' }}>{a.pct}%</div>
-                    <div className="num" style={{ textAlign: 'right', fontSize: 13, fontWeight: 600, color: a.over > 0 ? 'var(--danger)' : 'var(--ink-3)' }}>{a.over}</div>
                   </div>
                 ))}
-              </div>
-            </Card>
-
-            {/* Embudo */}
-            {funnelCard}
-
-            <p style={{ fontSize: 12, color: 'var(--ink-4)', textAlign: 'center', margin: 0 }}>
-              Las tareas individuales del día están en la pestaña <strong>Calendario</strong>.
-            </p>
-          </>
-        ) : (
-          /* ════════ MI DÍA (Agente) ════════ */
-          <>
-            {/* Línea de acción */}
-            <div style={{
-              background: actionItems.length > 0 ? 'linear-gradient(90deg, #FBE8E5 0%, var(--surface) 100%)' : 'var(--success-soft)',
-              borderLeft: `3px solid ${actionItems.length > 0 ? 'var(--danger)' : 'var(--success)'}`,
-              borderRadius: 'var(--radius)', padding: '16px 22px', display: 'flex', alignItems: 'center', gap: 20,
-              border: `1px solid ${actionItems.length > 0 ? '#E9CDC9' : 'var(--success-soft)'}`,
-            }}>
-              <div style={{ flex: 1 }}>
-                {actionItems.length > 0 ? (
-                  <>
-                    <div style={{ fontWeight: 700, fontSize: 16, fontFamily: 'var(--font-jakarta)', color: 'var(--ink)' }}>
-                      Tenés {overdue.length} {overdue.length === 1 ? 'atrasado' : 'atrasados'} y {todayTasks.length} {todayTasks.length === 1 ? 'tarea' : 'tareas'} para hoy
-                    </div>
-                    <div style={{ fontSize: 12.5, color: 'var(--ink-3)', marginTop: 3 }}>Empezá por el más urgente y registrá cada contacto.</div>
-                  </>
-                ) : (
-                  <div style={{ fontWeight: 700, fontSize: 16, fontFamily: 'var(--font-jakarta)', color: 'var(--success)' }}>¡Estás al día! No tenés pendientes 🎉</div>
+                {myPipeline.length === 0 && (
+                  <div style={{ padding: '8px 0', color: 'var(--ink-3)', fontSize: 13 }}>Todavía no tenés leads asignados.</div>
                 )}
               </div>
-              {actionItems.length > 0 && (
-                <button onClick={() => setOpenLead(actionItems[0])} style={{
-                  padding: '10px 20px', borderRadius: 'var(--radius)', border: 'none',
-                  background: 'var(--ink)', color: '#fff', fontSize: 13, fontWeight: 700, cursor: 'pointer', whiteSpace: 'nowrap',
-                }}>Empezar →</button>
-              )}
-            </div>
-
-            {/* Lista accionable */}
-            <Card>
-              <CardHeader>
-                <h3 style={{ fontSize: 14, fontWeight: 700, fontFamily: 'var(--font-jakarta)' }}>Para hacer hoy</h3>
-                <Tag variant="default">{actionItems.length}</Tag>
-              </CardHeader>
-              <div>
-                {actionItems.length === 0 ? (
-                  <div style={{ padding: '32px 20px', textAlign: 'center', color: 'var(--ink-3)', fontSize: 13 }}>Nada pendiente. Buen momento para sumar leads nuevos.</div>
-                ) : actionItems.map(lead => {
-                  const isOver = lead.days_without_contact >= 5
-                  const taskTime = lead.next_action_date?.includes('T') ? lead.next_action_date.slice(11, 16) : null
-                  return (
-                    <div key={lead.id} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '12px 20px', borderBottom: '1px solid var(--border)', cursor: 'pointer' }} onClick={() => setOpenLead(lead)}>
-                      <Avatar initials={lead.name.slice(0, 2).toUpperCase()} size={34} color={isOver ? 'var(--danger-soft)' : 'var(--gold-soft)'} />
-                      <div style={{ flex: 1, minWidth: 0 }}>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                          <span style={{ fontSize: 13.5, fontWeight: 600 }}>{lead.name}</span>
-                          {lead.hot && <Tag variant="gold">HOT</Tag>}
-                          {isOver
-                            ? <span style={{ fontSize: 11, fontWeight: 700, color: 'var(--danger)' }}>{lead.days_without_contact}d sin contacto</span>
-                            : taskTime && <span style={{ fontSize: 11, color: 'var(--ink-4)' }}>· hoy {taskTime}</span>}
-                        </div>
-                        <div style={{ fontSize: 12, color: 'var(--ink-3)', marginTop: 2, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                          {lead.stage?.name || 'Sin etapa'}{lead.property?.address ? ` · ${lead.property.address}` : ''}
-                        </div>
-                      </div>
-                      <div style={{ display: 'flex', gap: 6, flexShrink: 0 }} onClick={e => e.stopPropagation()}>
-                        <IconBtn title="WhatsApp" color="var(--success)" onClick={() => window.open(waLink(lead.phone), '_blank')}><WaIcon /></IconBtn>
-                        <IconBtn title="Llamar" onClick={() => lead.phone && window.open(`tel:${lead.phone.replace(/\D/g, '')}`)}><PhoneIcon /></IconBtn>
-                        <button
-                          title="Marcar como contactado"
-                          onClick={(e) => markContacted(lead, e)}
-                          disabled={contactBusyId === lead.id}
-                          style={{
-                            display: 'inline-flex', alignItems: 'center', gap: 6, padding: '0 12px', height: 32, borderRadius: 6,
-                            border: '1px solid var(--border)', background: 'var(--ink)', color: '#fff', fontSize: 12, fontWeight: 600,
-                            cursor: contactBusyId === lead.id ? 'wait' : 'pointer', whiteSpace: 'nowrap',
-                          }}>
-                          <CheckIcon size={13} /> Hecho
-                        </button>
-                      </div>
-                    </div>
-                  )
-                })}
-              </div>
             </Card>
-
-            {/* Análisis colapsable */}
-            <div>
-              <button onClick={() => setShowAnalysis(v => !v)} style={{
-                display: 'flex', alignItems: 'center', gap: 8, width: '100%', padding: '12px 16px',
-                background: '#fff', border: '1px solid var(--border)', borderRadius: 'var(--radius)',
-                cursor: 'pointer', fontSize: 13, fontWeight: 600, color: 'var(--ink-2)', fontFamily: 'var(--font-jakarta)',
-              }}>
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ transform: showAnalysis ? 'rotate(90deg)' : 'none', transition: 'transform .15s' }}><path d="M9 18l6-6-6-6"/></svg>
-                Ver análisis (embudo y conversión del equipo)
-              </button>
-              {showAnalysis && <div style={{ marginTop: 16 }}>{funnelCard}</div>}
-            </div>
           </>
         )}
 
       </div>
-
-      {showOverdue && (
-        <OverdueModal leads={overdue} onClose={() => setShowOverdue(false)} onOpenLead={setOpenLead} />
-      )}
 
       {openLead && (
         <LeadDrawer

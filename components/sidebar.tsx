@@ -4,13 +4,13 @@ import { usePathname, useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import type { Agent } from '@/lib/types'
 
-const NAV: { href: string; label: string; icon: string; adminOnly?: boolean; exact?: boolean }[] = [
+const NAV: { href: string; label: string; icon: string; adminOnly?: boolean; agentOnly?: boolean; exact?: boolean }[] = [
   { href: '/leads/pozo', label: 'Pozo de Leads',      icon: 'pool' },
   { href: '/leads',      label: 'Mis Leads',          icon: 'leads', exact: true },
   { href: '/pipeline',   label: 'Pipeline',           icon: 'pipeline' },
-  { href: '/sales',      label: 'Panel de Ventas',    icon: 'sales' },
+  { href: '/sales',      label: 'Panel de Ventas',    icon: 'sales', agentOnly: true },
   { href: '/properties', label: 'Propiedades',        icon: 'property' },
-  { href: '/dashboard',  label: 'Executive Dashboard',icon: 'dashboard' },
+  { href: '/dashboard',  label: 'Executive Dashboard',icon: 'dashboard', adminOnly: true },
   { href: '/settings',   label: 'Admin Settings',     icon: 'settings', adminOnly: true },
 ]
 
@@ -114,7 +114,7 @@ export default function Sidebar({ agent }: { agent: Agent | null }) {
       {/* Main nav */}
       <div style={{ fontSize: 10.5, letterSpacing: '0.16em', textTransform: 'uppercase', color: 'var(--ink-4)', fontWeight: 600, padding: '14px 8px 6px' }}>Workspace</div>
       <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-        {NAV.filter(item => !item.adminOnly || isAdmin).map(item => {
+        {NAV.filter(item => (!item.adminOnly || isAdmin) && (!item.agentOnly || !isAdmin)).map(item => {
           const active = item.exact
             ? pathname === item.href
             : pathname === item.href || pathname.startsWith(item.href + '/')
