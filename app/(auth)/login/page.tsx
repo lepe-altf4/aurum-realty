@@ -82,9 +82,8 @@ export default function LoginPage() {
         >
           {loading ? 'Ingresando…' : 'Ingresar'}
         </button>
-        <p style={{ textAlign: 'center', fontSize: 13, color: 'var(--ink-3)', marginTop: 4 }}>
-          ¿No tenés cuenta?{' '}
-          <a href="/register" style={{ color: 'var(--gold)', fontWeight: 600, textDecoration: 'none' }}>Registrarse</a>
+        <p style={{ textAlign: 'center', fontSize: 12.5, color: 'var(--ink-4)', marginTop: 4 }}>
+          El acceso es solo por invitación. Pedísela al administrador.
         </p>
       </form>
     </div>
