@@ -1,5 +1,5 @@
 'use client'
-import { useState, useMemo, useEffect } from 'react'
+import { useState, useMemo } from 'react'
 import Topbar from '@/components/ui/topbar'
 import { compactNum, fmtUSD, fmtARS, timeAgo } from '@/lib/format'
 import type { Lead, Agent, PipelineStage } from '@/lib/types'
@@ -101,44 +101,6 @@ function DonutChart({ data }: { data: { label: string; count: number; color: str
           </div>
         ))}
       </div>
-    </div>
-  )
-}
-
-// ── bar chart ─────────────────────────────────────────────────────────────────
-function BarChart({ data, labels, currency, dollarRate }: { data: number[]; labels: string[]; currency: 'USD' | 'ARS'; dollarRate: number }) {
-  const [mounted, setMounted] = useState(false)
-  useEffect(() => { const t = setTimeout(() => setMounted(true), 100); return () => clearTimeout(t) }, [])
-  const max = Math.max(...data)
-
-  return (
-    <div style={{ display: 'flex', alignItems: 'flex-end', gap: 10, height: 140, paddingTop: 8 }}>
-      {data.map((val, i) => {
-        const pct = max > 0 ? (val / max) * 100 : 0
-        const isLast = i === data.length - 1
-        const fmt = currency === 'USD' ? `USD ${compactNum(val)}` : `ARS ${compactNum(val * dollarRate)}`
-        return (
-          <div key={i} style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6 }}>
-            <div style={{ fontSize: 9, color: isLast ? 'var(--gold)' : 'var(--ink-3)', fontWeight: isLast ? 700 : 400 }}>
-              {fmt}
-            </div>
-            <div style={{ width: '100%', height: 100, display: 'flex', alignItems: 'flex-end' }}>
-              <div style={{
-                width: '100%',
-                height: mounted ? `${pct}%` : '0%',
-                background: isLast ? 'var(--gold)' : 'var(--gold-soft)',
-                borderRadius: '4px 4px 0 0',
-                border: isLast ? '1px solid var(--gold)' : '1px solid var(--border)',
-                transition: 'height 0.7s cubic-bezier(0.34,1.56,0.64,1)',
-                transitionDelay: `${i * 0.05}s`,
-              }} />
-            </div>
-            <div style={{ fontSize: 10, color: isLast ? 'var(--gold)' : 'var(--ink-3)', fontWeight: isLast ? 700 : 400 }}>
-              {labels[i]}
-            </div>
-          </div>
-        )
-      })}
     </div>
   )
 }
@@ -340,25 +302,23 @@ export default function ExecutiveDashboard({ leads, agents, stages = [], dollarR
     return closed.filter(l => closeDate(l) >= monthStart)
   }, [closed])
 
-  // Ingresos por mes (últimos 9 meses) derivados de cierres reales en USD.
-  const monthly = useMemo(() => {
-    const now = new Date()
-    const labels: string[] = []
-    const data: number[] = []
-    for (let i = 8; i >= 0; i--) {
-      const start = new Date(now.getFullYear(), now.getMonth() - i, 1)
-      const end = new Date(now.getFullYear(), now.getMonth() - i + 1, 1)
-      const usd = closed.reduce((s, l) => {
-        const d = closeDate(l)
-        if (d < start || d >= end) return s
-        if (!l.amount) return s
-        return s + (l.currency === 'USD' ? l.amount : l.amount / dollarRate)
-      }, 0)
-      labels.push(start.toLocaleDateString('es-AR', { month: 'short' }))
-      data.push(Math.round(usd))
+  // Cierres recientes: escrituras ordenadas por fecha de cierre real.
+  const recentClosures = useMemo(() => {
+    const agentName = (l: Lead) => {
+      const id = l.owner_id ?? l.agent_id
+      return agents.find(a => a.id === id)?.name ?? null
     }
-    return { labels, data }
-  }, [closed, dollarRate])
+    return [...closed]
+      .sort((a, b) => closeDate(b).getTime() - closeDate(a).getTime())
+      .slice(0, 6)
+      .map(l => ({
+        id: l.id,
+        address: l.property?.address ?? l.name,
+        usd: l.amount ? (l.currency === 'USD' ? l.amount : l.amount / dollarRate) : 0,
+        date: closeDate(l),
+        agent: agentName(l),
+      }))
+  }, [closed, agents, dollarRate])
   const totalAmountUSD = useMemo(() => leads.reduce((s, l) => {
     if (!l.amount) return s
     return s + (l.currency === 'USD' ? l.amount : l.amount / dollarRate)
@@ -512,15 +472,15 @@ export default function ExecutiveDashboard({ leads, agents, stages = [], dollarR
                 const ret = i > 0 && funnel.rows[i - 1].count > 0 ? Math.round((r.count / funnel.rows[i - 1].count) * 100) : null
                 const usdShown = currency === 'USD' ? r.usd : r.usd * dollarRate
                 return (
-                  <div key={r.key} style={{ display: 'grid', gridTemplateColumns: '120px 1fr 96px 64px', padding: '12px 20px', alignItems: 'center', borderBottom: i < funnel.rows.length - 1 ? '1px solid var(--border)' : undefined, background: isBn ? 'var(--danger-soft)' : 'transparent' }}>
+                  <div key={r.key} style={{ display: 'grid', gridTemplateColumns: '120px 1fr 96px 64px', padding: '12px 20px', alignItems: 'center', borderBottom: i < funnel.rows.length - 1 ? '1px solid var(--border)' : undefined, background: isBn ? 'var(--danger-soft)' : 'transparent', boxShadow: isBn ? 'inset 3px 0 0 var(--danger)' : 'none' }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                      {isBn && <span title="Cuello de botella" style={{ fontSize: 10 }}>⚠</span>}
                       <span style={{ fontSize: 13, fontWeight: isBn ? 700 : 600, color: isBn ? 'var(--danger)' : 'var(--ink)' }}>{r.name}</span>
+                      {isBn && <span style={{ fontSize: 8.5, fontWeight: 700, letterSpacing: '0.04em', textTransform: 'uppercase', color: '#fff', background: 'var(--danger)', borderRadius: 999, padding: '1px 6px' }}>Cuello</span>}
                     </div>
                     <div style={{ paddingRight: 14 }}>
                       <div style={{ height: 22, background: 'var(--surface-2)', borderRadius: 4, overflow: 'hidden', position: 'relative' }}>
-                        <div style={{ height: '100%', width: `${barW}%`, background: isBn ? 'var(--danger)' : 'var(--gold)', opacity: isBn ? 1 : 0.85, borderRadius: 4, transition: 'width .5s' }} />
-                        <span className="num" style={{ position: 'absolute', left: 8, top: 0, height: 22, display: 'flex', alignItems: 'center', fontSize: 11, fontWeight: 600, color: barW > 30 ? '#fff' : 'var(--ink-2)' }}>
+                        <div style={{ height: '100%', width: `${barW}%`, background: isBn ? 'var(--danger)' : 'var(--gold)', opacity: isBn ? 1 : 0.5, borderRadius: 4, transition: 'width .5s' }} />
+                        <span className="num" style={{ position: 'absolute', left: 8, top: 0, height: 22, display: 'flex', alignItems: 'center', fontSize: 11, fontWeight: 600, color: isBn && barW > 30 ? '#fff' : 'var(--ink-2)' }}>
                           {currency} {compactNum(usdShown)}
                         </span>
                       </div>
@@ -565,16 +525,38 @@ export default function ExecutiveDashboard({ leads, agents, stages = [], dollarR
           </div>
         </div>
 
-        {/* ── Row 2: Ingresos por mes (franja inferior) + Origen accionable ── */}
+        {/* ── Row 2: Cierres recientes + Origen accionable ── */}
         <div className="grid-2col-resp" style={{ display: 'grid', gridTemplateColumns: '1.6fr 1fr', gap: 16 }}>
           <Card>
             <CardHeader>
-              <h3 style={{ fontSize: 14, fontWeight: 700, fontFamily: 'var(--font-jakarta)' }}>Ingresos por mes · últimos 9 meses</h3>
-              <span style={{ fontSize: 12, color: 'var(--ink-3)' }}>cierres reales · en {currency}</span>
+              <h3 style={{ fontSize: 14, fontWeight: 700, fontFamily: 'var(--font-jakarta)' }}>Cierres recientes</h3>
+              {recentClosures.length > 0 && <span style={{ fontSize: 12, color: 'var(--ink-3)' }}>últimas escrituras</span>}
             </CardHeader>
-            <div style={{ padding: '20px 20px 16px' }}>
-              <BarChart data={monthly.data} labels={monthly.labels} currency={currency} dollarRate={dollarRate} />
-            </div>
+            {recentClosures.length === 0 ? (
+              <div style={{ padding: '40px 20px', textAlign: 'center', color: 'var(--ink-3)', fontSize: 13 }}>
+                Aún no hay cierres registrados.
+              </div>
+            ) : (
+              <div>
+                {recentClosures.map((c, i) => {
+                  const amount = currency === 'USD' ? fmtUSD(c.usd) : fmtARS(c.usd * dollarRate)
+                  return (
+                    <div key={c.id} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '12px 20px', borderBottom: i < recentClosures.length - 1 ? '1px solid var(--border)' : undefined }}>
+                      <div style={{ width: 30, height: 30, borderRadius: '50%', background: 'var(--success-soft)', display: 'grid', placeItems: 'center', flexShrink: 0 }}>
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--success)" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><path d="M20 6 9 17l-5-5" /></svg>
+                      </div>
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <div style={{ fontSize: 13, fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{c.address}</div>
+                        <div style={{ fontSize: 11.5, color: 'var(--ink-3)', marginTop: 2 }}>
+                          {c.date.toLocaleDateString('es-AR', { day: '2-digit', month: 'short', year: 'numeric' })}{c.agent ? ` · ${c.agent}` : ''}
+                        </div>
+                      </div>
+                      <div className="num" style={{ fontSize: 13.5, fontWeight: 700, color: 'var(--success)', flexShrink: 0 }}>{amount}</div>
+                    </div>
+                  )
+                })}
+              </div>
+            )}
           </Card>
 
           <Card>

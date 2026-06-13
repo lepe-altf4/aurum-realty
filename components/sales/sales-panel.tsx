@@ -327,18 +327,18 @@ export default function SalesPanel({ leads: initialLeads, stages, agents, isAdmi
           const barW = maxBarCount > 0 ? Math.max(4, (count / maxBarCount) * 100) : 4
           const isBottleneck = s.key === bottleneckKey
           return (
-            <div key={s.id} style={{ display: 'grid', gridTemplateColumns: '1fr 2fr 60px 70px', padding: '11px 20px', alignItems: 'center', borderBottom: i < stages.length - 1 ? '1px solid var(--border)' : undefined, background: isBottleneck ? 'var(--danger-soft)' : 'transparent' }}>
+            <div key={s.id} style={{ display: 'grid', gridTemplateColumns: '1fr 2fr 60px 70px', padding: '11px 20px', alignItems: 'center', borderBottom: i < stages.length - 1 ? '1px solid var(--border)' : undefined, background: isBottleneck ? 'var(--danger-soft)' : 'transparent', boxShadow: isBottleneck ? 'inset 3px 0 0 var(--danger)' : 'none' }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                {isBottleneck && <span style={{ fontSize: 10 }}>⚠</span>}
                 <span style={{ fontSize: 13, fontWeight: isBottleneck ? 700 : 500, color: isBottleneck ? 'var(--danger)' : 'var(--ink)' }}>{s.name}</span>
+                {isBottleneck && <span style={{ fontSize: 8.5, fontWeight: 700, letterSpacing: '0.04em', textTransform: 'uppercase', color: '#fff', background: 'var(--danger)', borderRadius: 999, padding: '1px 6px' }}>Cuello</span>}
               </div>
               <div style={{ paddingRight: 12 }}>
-                <div style={{ height: 6, background: 'var(--surface-2)', borderRadius: 3, overflow: 'hidden' }}>
-                  <div style={{ height: '100%', width: `${barW}%`, background: isBottleneck ? 'var(--danger)' : 'var(--gold)', borderRadius: 3, opacity: isBottleneck ? 1 : 0.7 }} />
+                <div style={{ height: 8, background: 'var(--surface-2)', borderRadius: 3, overflow: 'hidden' }}>
+                  <div style={{ height: '100%', width: `${barW}%`, background: isBottleneck ? 'var(--danger)' : 'var(--gold)', borderRadius: 3, opacity: isBottleneck ? 1 : 0.5 }} />
                 </div>
               </div>
-              <div className="num" style={{ textAlign: 'right', fontWeight: 600, fontSize: 13 }}>{count}</div>
-              <div className="num" style={{ textAlign: 'right', fontSize: 12, color: 'var(--ink-3)' }}>{convPct}%</div>
+              <div className="num" style={{ textAlign: 'right', fontWeight: 600, fontSize: 13, color: isBottleneck ? 'var(--danger)' : 'var(--ink)' }}>{count}</div>
+              <div className="num" style={{ textAlign: 'right', fontSize: 12, fontWeight: 600, color: isBottleneck ? 'var(--danger)' : 'var(--ink-3)' }}>{convPct}%</div>
             </div>
           )
         })}
