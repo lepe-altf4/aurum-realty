@@ -43,6 +43,7 @@ export default async function SalesPage() {
       leads={visible}
       stages={stagesRes.data ?? []}
       agents={agentsRes.data ?? []}
+      isAdmin={isAdmin}
     />
   )
 }
