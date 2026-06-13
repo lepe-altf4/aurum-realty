@@ -330,14 +330,16 @@ export default function ExecutiveDashboard({ leads, agents, dollarRate, dollarUp
   // KPI derivations
   const closed = useMemo(() => leads.filter(l => l.stage?.key === 'escritura'), [leads])
 
-  // Cierres del mes actual (escrituras con updated_at en el mes)
+  // Fecha de cierre real (closed_at); fallback a updated_at si la migración 009 no corrió
+  const closeDate = (l: Lead) => new Date(l.closed_at ?? l.updated_at)
+
+  // Cierres del mes actual (escrituras cerradas este mes, por closed_at real)
   const closedThisMonth = useMemo(() => {
     const monthStart = new Date(); monthStart.setDate(1); monthStart.setHours(0, 0, 0, 0)
-    return closed.filter(l => new Date(l.updated_at) >= monthStart)
+    return closed.filter(l => closeDate(l) >= monthStart)
   }, [closed])
 
   // Ingresos por mes (últimos 9 meses) derivados de cierres reales en USD.
-  // Sin columna closed_at, se usa updated_at como fecha de cierre aproximada.
   const monthly = useMemo(() => {
     const now = new Date()
     const labels: string[] = []
@@ -346,7 +348,7 @@ export default function ExecutiveDashboard({ leads, agents, dollarRate, dollarUp
       const start = new Date(now.getFullYear(), now.getMonth() - i, 1)
       const end = new Date(now.getFullYear(), now.getMonth() - i + 1, 1)
       const usd = closed.reduce((s, l) => {
-        const d = new Date(l.updated_at)
+        const d = closeDate(l)
         if (d < start || d >= end) return s
         if (!l.amount) return s
         return s + (l.currency === 'USD' ? l.amount : l.amount / dollarRate)

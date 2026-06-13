@@ -292,10 +292,10 @@ export default function SalesPanel({ leads, stages, agents }: {
   }, [agents, leads])
   const maxEffPct = Math.max(...effectiveness.map(e => e.pct), 1)
 
-  // Cierres del mes actual (escrituras con updated_at en el mes)
+  // Cierres del mes actual (escrituras cerradas este mes, por closed_at real)
   const closedThisMonth = useMemo(() => {
     const monthStart = new Date(); monthStart.setDate(1); monthStart.setHours(0, 0, 0, 0)
-    return closedLeads.filter(l => new Date(l.updated_at) >= monthStart)
+    return closedLeads.filter(l => new Date(l.closed_at ?? l.updated_at) >= monthStart)
   }, [closedLeads])
 
   const stageCounts = useMemo(() => {

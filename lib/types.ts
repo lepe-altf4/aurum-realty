@@ -75,6 +75,7 @@ export interface Lead {
   score: number
   days_without_contact: number
   last_contact_at?: string | null
+  closed_at?: string | null
   next_action_date: string | null
   notes: string | null
   created_at: string
