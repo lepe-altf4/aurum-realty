@@ -2,7 +2,7 @@
 import { useState, useRef, useMemo, useEffect } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { validateImage } from '@/lib/images'
-import { uploadPhotos, syncCover } from '@/lib/property-photos'
+import { uploadPhotos } from '@/lib/property-photos'
 import type { Property } from '@/lib/types'
 
 // Localidades del Alto Valle + barrios/zonas que ya usan las propiedades cargadas.
@@ -89,8 +89,7 @@ export default function NewPropertyModal({ onClose, onCreated }: {
       setUploadingImage(true)
       try {
         const added = await uploadPhotos(data.id, files, 0)
-        finalPhotoUrl = added[0]?.url ?? null
-        await syncCover(data.id, finalPhotoUrl)
+        finalPhotoUrl = added[0]?.url ?? null   // la portada la sincroniza la API
       } catch (uploadErr) {
         // La propiedad ya se creó; avisamos pero no la perdemos
         setError(`Propiedad creada, pero falló la subida de fotos: ${(uploadErr as Error).message}`)

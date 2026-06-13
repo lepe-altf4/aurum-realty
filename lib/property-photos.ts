@@ -1,11 +1,10 @@
-// Helpers de cliente para fotos de propiedades (Supabase Storage + tabla).
-// La portada (position 0) se cachea en properties.photo_url para que las
-// vistas de listado no tengan que joinear property_photos.
+// Helpers de cliente para fotos de propiedades.
+// Las ESCRITURAS van por /api/properties/photos (admin-client server-side),
+// así no dependen de las policies de Storage y funcionan igual en alta y edición.
+// La compresión se hace en el browser antes de enviar (subida liviana y rápida).
 import { createClient } from '@/lib/supabase/client'
 import { compressImage } from '@/lib/images'
 import type { PropertyPhoto } from '@/lib/types'
-
-const BUCKET = 'property-photos'
 
 export async function fetchPhotos(propertyId: string): Promise<PropertyPhoto[]> {
   const supabase = createClient()
@@ -18,41 +17,29 @@ export async function fetchPhotos(propertyId: string): Promise<PropertyPhoto[]> 
   return (data ?? []) as PropertyPhoto[]
 }
 
-/** Comprime y sube cada archivo; inserta la fila y devuelve las fotos creadas. */
+/** Comprime y sube cada archivo vía la API; devuelve las fotos creadas. */
 export async function uploadPhotos(
   propertyId: string,
   files: File[],
   startPosition: number,
   onEach?: (done: number) => void
 ): Promise<PropertyPhoto[]> {
-  const supabase = createClient()
   const created: PropertyPhoto[] = []
   let pos = startPosition
   let done = 0
 
   for (const file of files) {
     const blob = await compressImage(file)
-    const path = `${propertyId}/${crypto.randomUUID()}.webp`
+    const form = new FormData()
+    form.append('file', blob, 'photo.webp')
+    form.append('propertyId', propertyId)
+    form.append('position', String(pos))
 
-    const { error: upErr } = await supabase.storage
-      .from(BUCKET)
-      .upload(path, blob, { contentType: 'image/webp', upsert: false })
-    if (upErr) throw new Error(`No se pudo subir la imagen: ${upErr.message}`)
+    const res = await fetch('/api/properties/photos', { method: 'POST', body: form })
+    const data = await res.json().catch(() => ({}))
+    if (!res.ok) throw new Error(data.error ?? `Error ${res.status} al subir la foto`)
 
-    const { data: pub } = supabase.storage.from(BUCKET).getPublicUrl(path)
-
-    const { data: row, error: insErr } = await supabase
-      .from('property_photos')
-      .insert({ property_id: propertyId, url: pub.publicUrl, storage_path: path, position: pos })
-      .select('*')
-      .single()
-    if (insErr) {
-      // rollback del archivo huérfano
-      await supabase.storage.from(BUCKET).remove([path])
-      throw new Error(`No se pudo guardar la foto: ${insErr.message}`)
-    }
-
-    created.push(row as PropertyPhoto)
+    created.push(data.photo as PropertyPhoto)
     pos++
     done++
     onEach?.(done)
@@ -61,29 +48,26 @@ export async function uploadPhotos(
 }
 
 export async function deletePhoto(photo: PropertyPhoto): Promise<void> {
-  const supabase = createClient()
-  if (photo.storage_path) {
-    await supabase.storage.from(BUCKET).remove([photo.storage_path])
+  const res = await fetch('/api/properties/photos', {
+    method: 'DELETE',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ photoId: photo.id }),
+  })
+  if (!res.ok) {
+    const data = await res.json().catch(() => ({}))
+    throw new Error(data.error ?? `Error ${res.status} al borrar la foto`)
   }
-  const { error } = await supabase.from('property_photos').delete().eq('id', photo.id)
-  if (error) throw new Error(error.message)
 }
 
 /** Renumera position 0..n según el orden del array y sincroniza la portada. */
 export async function persistOrder(propertyId: string, photos: PropertyPhoto[]): Promise<void> {
-  const supabase = createClient()
-  await Promise.all(
-    photos.map((p, i) =>
-      p.position === i
-        ? Promise.resolve()
-        : supabase.from('property_photos').update({ position: i }).eq('id', p.id)
-    )
-  )
-  await syncCover(propertyId, photos[0]?.url ?? null)
-}
-
-/** Escribe la portada en properties.photo_url (caché para los listados). */
-export async function syncCover(propertyId: string, coverUrl: string | null): Promise<void> {
-  const supabase = createClient()
-  await supabase.from('properties').update({ photo_url: coverUrl }).eq('id', propertyId)
+  const res = await fetch('/api/properties/photos', {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ propertyId, orderedIds: photos.map(p => p.id) }),
+  })
+  if (!res.ok) {
+    const data = await res.json().catch(() => ({}))
+    throw new Error(data.error ?? `Error ${res.status} al reordenar`)
+  }
 }
