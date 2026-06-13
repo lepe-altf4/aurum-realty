@@ -235,6 +235,31 @@ function TeamTab({ agents }: { agents: Agent[] }) {
   const [editSnapshot, setEditSnapshot] = useState<Agent | null>(null)
   const [savingId, setSavingId] = useState<string | null>(null)
   const [teamError, setTeamError] = useState<string | null>(null)
+  const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null)
+  const [deleteBusyId, setDeleteBusyId] = useState<string | null>(null)
+
+  async function handleDeleteAgent(agent: Agent) {
+    setDeleteBusyId(agent.id)
+    setTeamError(null)
+    try {
+      const res = await fetch('/api/agents/delete', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id: agent.id }),
+      })
+      const data = await res.json()
+      if (!res.ok) {
+        setTeamError(data.error ?? `Error ${res.status}`)
+      } else {
+        setList(l => l.filter(a => a.id !== agent.id))
+        setConfirmDeleteId(null)
+      }
+    } catch (e) {
+      setTeamError(`No se pudo eliminar: ${(e as Error).message}`)
+    } finally {
+      setDeleteBusyId(null)
+    }
+  }
 
   function handleRoleChange(id: string, role: Agent['role']) {
     setList(l => l.map(a => a.id === id ? { ...a, role } : a))
@@ -490,7 +515,7 @@ function TeamTab({ agents }: { agents: Agent[] }) {
 
       <div style={{ border: '1px solid var(--border)', borderRadius: 'var(--radius-lg)', overflow: 'hidden', background: '#fff' }}>
         <div style={{
-          display: 'grid', gridTemplateColumns: '1fr 160px 110px 70px 84px 168px',
+          display: 'grid', gridTemplateColumns: '1fr 150px 92px 58px 76px 210px',
           padding: '10px 20px', fontSize: 11, color: 'var(--ink-3)',
           fontWeight: 600, letterSpacing: '0.06em', textTransform: 'uppercase',
           borderBottom: '1px solid var(--border)', background: 'var(--surface)',
@@ -504,7 +529,7 @@ function TeamTab({ agents }: { agents: Agent[] }) {
         </div>
         {list.map((agent, i) => (
           <div key={agent.id} style={{
-            display: 'grid', gridTemplateColumns: '1fr 160px 110px 70px 84px 168px',
+            display: 'grid', gridTemplateColumns: '1fr 150px 92px 58px 76px 210px',
             padding: '12px 20px', alignItems: 'center',
             borderBottom: i < list.length - 1 ? '1px solid var(--border)' : undefined,
           }}>
@@ -553,6 +578,23 @@ function TeamTab({ agents }: { agents: Agent[] }) {
                 {agent.status}
               </Tag>
             </div>
+            {confirmDeleteId === agent.id ? (
+              <div style={{ display: 'flex', justifyContent: 'flex-end', alignItems: 'center', gap: 8 }}>
+                <span style={{ fontSize: 11.5, color: 'var(--danger)', fontWeight: 600 }}>¿Eliminar?</span>
+                <button
+                  onClick={() => handleDeleteAgent(agent)}
+                  disabled={deleteBusyId === agent.id}
+                  style={{ padding: '5px 10px', borderRadius: 6, border: 'none', background: 'var(--danger)', color: '#fff', fontSize: 11, fontWeight: 600, cursor: deleteBusyId === agent.id ? 'wait' : 'pointer' }}>
+                  {deleteBusyId === agent.id ? 'Eliminando…' : 'Sí, eliminar'}
+                </button>
+                <button
+                  onClick={() => setConfirmDeleteId(null)}
+                  disabled={deleteBusyId === agent.id}
+                  style={{ padding: '5px 10px', borderRadius: 6, border: '1px solid var(--border)', background: '#fff', color: 'var(--ink-2)', fontSize: 11, fontWeight: 600, cursor: 'pointer' }}>
+                  No
+                </button>
+              </div>
+            ) : (
             <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 6 }}>
               <button
                 onClick={() => handleResetAccess(agent)}
@@ -595,7 +637,18 @@ function TeamTab({ agents }: { agents: Agent[] }) {
               >
                 {agent.status === 'Activo' ? 'Desactivar' : agent.status === 'Pendiente' ? 'Pendiente' : 'Activar'}
               </button>
+              <button
+                onClick={() => setConfirmDeleteId(agent.id)}
+                title="Eliminar del equipo"
+                style={{
+                  width: 28, height: 28, display: 'grid', placeItems: 'center', borderRadius: 6,
+                  border: '1px solid var(--border)', background: '#fff', color: 'var(--danger)',
+                  cursor: 'pointer', flexShrink: 0,
+                }}>
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round"><path d="M3 6h18M8 6V4h8v2M19 6l-1 14H6L5 6"/></svg>
+              </button>
             </div>
+            )}
           </div>
         ))}
       </div>
