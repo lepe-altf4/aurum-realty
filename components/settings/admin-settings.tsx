@@ -197,6 +197,40 @@ function TeamTab({ agents }: { agents: Agent[] }) {
   const [inviteLink, setInviteLink] = useState<string | null>(null)
   const [inviteNotice, setInviteNotice] = useState<string | null>(null)
   const [linkCopied, setLinkCopied] = useState(false)
+  const [resetBusyId, setResetBusyId] = useState<string | null>(null)
+  const [resetLink, setResetLink] = useState<{ name: string; link: string } | null>(null)
+  const [resetCopied, setResetCopied] = useState(false)
+
+  async function handleResetAccess(agent: Agent) {
+    setResetBusyId(agent.id)
+    setResetLink(null)
+    setTeamError(null)
+    try {
+      const res = await fetch('/api/auth/reset', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: agent.email }),
+      })
+      const data = await res.json()
+      if (!res.ok || !data.reset_link) {
+        setTeamError(data.error ?? 'No se pudo generar el link de reseteo.')
+      } else {
+        setResetLink({ name: agent.name, link: data.reset_link })
+      }
+    } catch (e) {
+      setTeamError(`No se pudo generar el link: ${(e as Error).message}`)
+    } finally {
+      setResetBusyId(null)
+    }
+  }
+
+  function copyResetLink() {
+    if (!resetLink) return
+    navigator.clipboard.writeText(resetLink.link).then(() => {
+      setResetCopied(true)
+      setTimeout(() => setResetCopied(false), 2000)
+    })
+  }
   const [editId, setEditId] = useState<string | null>(null)
   const [editSnapshot, setEditSnapshot] = useState<Agent | null>(null)
   const [savingId, setSavingId] = useState<string | null>(null)
@@ -427,9 +461,38 @@ function TeamTab({ agents }: { agents: Agent[] }) {
         }}>{teamError}</div>
       )}
 
+      {resetLink && (
+        <div style={{
+          padding: '12px 14px', borderRadius: 8, background: 'var(--gold-soft)',
+          border: '1px solid #E2D4B5', display: 'flex', flexDirection: 'column', gap: 8,
+        }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <div style={{ fontSize: 12, fontWeight: 600, color: '#6E5630' }}>
+              Link para que <strong>{resetLink.name}</strong> resetee su contraseña
+            </div>
+            <button onClick={() => setResetLink(null)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#8E6840', fontSize: 16, lineHeight: 1, padding: 0 }}>×</button>
+          </div>
+          <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
+            <div style={{ flex: 1, minWidth: 200, padding: '8px 10px', borderRadius: 6, border: '1px solid #E2D4B5', background: '#fff', fontSize: 11, fontFamily: 'var(--font-mono)', color: 'var(--ink-2)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+              {resetLink.link}
+            </div>
+            <button onClick={copyResetLink} style={{ padding: '8px 14px', borderRadius: 6, border: '1px solid #E2D4B5', background: resetCopied ? 'var(--success)' : 'var(--ink)', color: '#fff', fontSize: 12, fontWeight: 600, cursor: 'pointer', flexShrink: 0, transition: 'background .2s' }}>
+              {resetCopied ? '✓ Copiado' : 'Copiar link'}
+            </button>
+            <a
+              href={`https://wa.me/?text=${encodeURIComponent(`Hola ${resetLink.name}, restablecé tu contraseña del CRM de Unnique con este link: ${resetLink.link}`)}`}
+              target="_blank" rel="noreferrer"
+              style={{ padding: '8px 14px', borderRadius: 6, border: 'none', background: 'var(--success)', color: '#fff', fontSize: 12, fontWeight: 600, textDecoration: 'none', flexShrink: 0 }}>
+              WhatsApp
+            </a>
+          </div>
+          <div style={{ fontSize: 11, color: '#8E6840' }}>El link expira en 1 hora.</div>
+        </div>
+      )}
+
       <div style={{ border: '1px solid var(--border)', borderRadius: 'var(--radius-lg)', overflow: 'hidden', background: '#fff' }}>
         <div style={{
-          display: 'grid', gridTemplateColumns: '1fr 160px 120px 80px 90px 100px',
+          display: 'grid', gridTemplateColumns: '1fr 160px 110px 70px 84px 168px',
           padding: '10px 20px', fontSize: 11, color: 'var(--ink-3)',
           fontWeight: 600, letterSpacing: '0.06em', textTransform: 'uppercase',
           borderBottom: '1px solid var(--border)', background: 'var(--surface)',
@@ -443,7 +506,7 @@ function TeamTab({ agents }: { agents: Agent[] }) {
         </div>
         {list.map((agent, i) => (
           <div key={agent.id} style={{
-            display: 'grid', gridTemplateColumns: '1fr 160px 120px 80px 90px 100px',
+            display: 'grid', gridTemplateColumns: '1fr 160px 110px 70px 84px 168px',
             padding: '12px 20px', alignItems: 'center',
             borderBottom: i < list.length - 1 ? '1px solid var(--border)' : undefined,
           }}>
@@ -495,6 +558,18 @@ function TeamTab({ agents }: { agents: Agent[] }) {
               </Tag>
             </div>
             <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 6 }}>
+              <button
+                onClick={() => handleResetAccess(agent)}
+                disabled={agent.status === 'Pendiente' || resetBusyId === agent.id}
+                title={agent.status === 'Pendiente' ? 'Todavía no aceptó la invitación' : 'Generar link para resetear su contraseña'}
+                style={{
+                  width: 28, height: 28, display: 'grid', placeItems: 'center', borderRadius: 6,
+                  border: '1px solid var(--border)', background: '#fff', color: 'var(--ink-2)',
+                  cursor: agent.status === 'Pendiente' ? 'not-allowed' : resetBusyId === agent.id ? 'wait' : 'pointer',
+                  opacity: agent.status === 'Pendiente' ? 0.4 : 1, flexShrink: 0,
+                }}>
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round"><circle cx="7.5" cy="15.5" r="4.5"/><path d="m10.5 12.5 7-7M16 7l3 3M14 9l3 3"/></svg>
+              </button>
               <button
                 onClick={() => editId === agent.id ? finishEdit(agent) : startEdit(agent)}
                 disabled={savingId === agent.id}

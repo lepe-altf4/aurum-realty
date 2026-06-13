@@ -9,6 +9,25 @@ export default function LoginPage() {
   const [password, setPassword] = useState('')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
+  const [resetOpen, setResetOpen] = useState(false)
+  const [resetEmail, setResetEmail] = useState('')
+  const [resetMsg, setResetMsg] = useState('')
+  const [resetSending, setResetSending] = useState(false)
+
+  async function handleReset(e: React.FormEvent) {
+    e.preventDefault()
+    setResetSending(true)
+    setResetMsg('')
+    try {
+      await fetch('/api/auth/reset', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: resetEmail.trim().toLowerCase() }),
+      })
+    } catch { /* anti-enumeración: respondemos igual */ }
+    setResetSending(false)
+    setResetMsg('Si el email está registrado, te enviamos un link para restablecer la contraseña. Si no llega, pedíselo al administrador.')
+  }
 
   async function handleLogin(e: React.FormEvent) {
     e.preventDefault()
@@ -82,6 +101,34 @@ export default function LoginPage() {
         >
           {loading ? 'Ingresando…' : 'Ingresar'}
         </button>
+
+        {!resetOpen ? (
+          <button
+            type="button"
+            onClick={() => { setResetOpen(true); setResetEmail(email) }}
+            style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--ink-3)', fontSize: 12.5, marginTop: 2, textDecoration: 'underline', textUnderlineOffset: 2 }}
+          >
+            ¿Olvidaste tu contraseña?
+          </button>
+        ) : resetMsg ? (
+          <p style={{ fontSize: 12.5, color: 'var(--success)', marginTop: 4, lineHeight: 1.5 }}>{resetMsg}</p>
+        ) : (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginTop: 4, padding: '12px', background: 'var(--surface)', borderRadius: 'var(--radius)', border: '1px solid var(--border)' }}>
+            <label style={{ fontSize: 11, fontWeight: 600, letterSpacing: '0.08em', textTransform: 'uppercase', color: 'var(--ink-3)' }}>Email para restablecer</label>
+            <input
+              type="email" value={resetEmail} onChange={e => setResetEmail(e.target.value)}
+              placeholder="tu@email.com"
+              style={{ padding: '9px 12px', borderRadius: 'var(--radius)', border: '1px solid var(--border)', fontSize: 14, outline: 'none', background: '#fff', fontFamily: 'inherit', color: 'var(--ink)' }}
+            />
+            <button
+              type="button" onClick={handleReset} disabled={resetSending || !resetEmail.trim()}
+              style={{ padding: '9px 12px', borderRadius: 'var(--radius)', background: 'var(--ink)', color: '#fff', fontWeight: 600, fontSize: 13, border: 'none', cursor: resetSending ? 'wait' : 'pointer', opacity: resetSending || !resetEmail.trim() ? 0.6 : 1 }}
+            >
+              {resetSending ? 'Enviando…' : 'Enviar link de recuperación'}
+            </button>
+          </div>
+        )}
+
         <p style={{ textAlign: 'center', fontSize: 12.5, color: 'var(--ink-4)', marginTop: 4 }}>
           El acceso es solo por invitación. Pedísela al administrador.
         </p>

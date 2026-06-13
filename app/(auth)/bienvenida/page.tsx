@@ -15,6 +15,7 @@ export default function BienvenidaPage() {
   const router = useRouter()
   const [status, setStatus] = useState<Status>('processing')
   const [name, setName] = useState<string | null>(null)
+  const [isRecovery, setIsRecovery] = useState(false)
   const [password, setPassword] = useState('')
   const [password2, setPassword2] = useState('')
   const [error, setError] = useState('')
@@ -32,6 +33,7 @@ export default function BienvenidaPage() {
         setStatus('invalid')
         return
       }
+      if (hash.get('type') === 'recovery') setIsRecovery(true)
       const access_token = hash.get('access_token')
       const refresh_token = hash.get('refresh_token')
       if (access_token && refresh_token) {
@@ -81,12 +83,18 @@ export default function BienvenidaPage() {
           marginBottom: 16,
         }}>A</div>
         <h1 style={{ fontSize: 22, fontWeight: 700, fontFamily: 'var(--font-jakarta)' }}>
-          {status === 'invalid' ? 'Link inválido' : `¡Bienvenido${name ? `, ${name.split(' ')[0]}` : ''}!`}
+          {status === 'invalid'
+            ? 'Link inválido'
+            : isRecovery
+              ? 'Restablecer contraseña'
+              : `¡Bienvenido${name ? `, ${name.split(' ')[0]}` : ''}!`}
         </h1>
         <p style={{ color: 'var(--ink-3)', fontSize: 13, marginTop: 4 }}>
           {status === 'invalid'
-            ? 'La invitación venció o ya fue usada'
-            : 'Creá tu contraseña para entrar al CRM'}
+            ? 'El link venció o ya fue usado'
+            : isRecovery
+              ? 'Elegí una contraseña nueva'
+              : 'Creá tu contraseña para entrar al CRM'}
         </p>
       </div>
 
