@@ -56,11 +56,11 @@ delete from public.agents
 -- 3. EQUIPO Unnique (demo, sin login; se invitan luego desde Settings)
 -- ──────────────────────────────────────────────────────────────
 insert into public.agents (name, email, role, commission_pct, status, initials) values
-  ('Richard Domínguez', 'richard@unnique.com.ar', 'Senior', 3.5, 'Activo', 'RD'),
-  ('Lucía Sandoval',    'lucia@unnique.com.ar',   'Senior', 3.5, 'Activo', 'LS'),
+  ('Richard Domínguez', 'richard@unnique.com.ar', 'Agente', 3.5, 'Activo', 'RD'),
+  ('Lucía Sandoval',    'lucia@unnique.com.ar',   'Agente', 3.5, 'Activo', 'LS'),
   ('Matías Curihual',   'matias@unnique.com.ar',  'Agente', 3.0, 'Activo', 'MC'),
   ('Brenda Aguirre',    'brenda@unnique.com.ar',  'Agente', 3.0, 'Activo', 'BA'),
-  ('Tomás Vera',        'tomas@unnique.com.ar',   'Junior', 2.5, 'Activo', 'TV')
+  ('Tomás Vera',        'tomas@unnique.com.ar',   'Agente', 2.5, 'Activo', 'TV')
 on conflict (email) do update
   set name = excluded.name, role = excluded.role,
       commission_pct = excluded.commission_pct,

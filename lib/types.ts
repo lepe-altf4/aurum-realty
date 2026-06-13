@@ -10,7 +10,7 @@ export interface Agent {
   auth_user_id: string | null
   name: string
   email: string
-  role: 'Admin' | 'Senior' | 'Agente' | 'Junior'
+  role: 'Admin' | 'Agente'
   commission_pct: number
   status: 'Activo' | 'Inactivo' | 'Pendiente'
   initials: string | null

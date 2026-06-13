@@ -384,10 +384,8 @@ function TeamTab({ agents }: { agents: Agent[] }) {
             </FormField>
             <FormField label="Rol">
               <select style={selectStyle} value={invite.role} onChange={e => setInvite(i => ({ ...i, role: e.target.value }))}>
-                <option>Admin</option>
-                <option>Senior</option>
                 <option>Agente</option>
-                <option>Junior</option>
+                <option>Admin</option>
               </select>
             </FormField>
             <button
@@ -524,10 +522,8 @@ function TeamTab({ agents }: { agents: Agent[] }) {
                   value={agent.role}
                   onChange={e => handleRoleChange(agent.id, e.target.value as Agent['role'])}
                 >
-                  <option>Admin</option>
-                  <option>Senior</option>
                   <option>Agente</option>
-                  <option>Junior</option>
+                  <option>Admin</option>
                 </select>
               ) : (
                 <span style={{ fontSize: 12, color: 'var(--ink-2)' }}>{agent.role}</span>

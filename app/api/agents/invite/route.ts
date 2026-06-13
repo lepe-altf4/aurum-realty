@@ -3,7 +3,7 @@ import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import type { SupabaseClient, User } from '@supabase/supabase-js'
 
-const VALID_ROLES = ['Admin', 'Senior', 'Agente', 'Junior'] as const
+const VALID_ROLES = ['Admin', 'Agente'] as const
 type Role = (typeof VALID_ROLES)[number]
 
 // Busca un usuario de auth por email (no hay endpoint directo en supabase-js v2).

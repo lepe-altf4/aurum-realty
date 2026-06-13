@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 
-const VALID_ROLES = ['Admin', 'Senior', 'Agente', 'Junior'] as const
+const VALID_ROLES = ['Admin', 'Agente'] as const
 const VALID_STATUS = ['Activo', 'Inactivo'] as const
 
 // POST: actualiza rol / comisión / estado de un agente. Solo Admin.
