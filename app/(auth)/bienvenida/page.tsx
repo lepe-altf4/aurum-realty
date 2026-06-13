@@ -20,28 +20,51 @@ export default function BienvenidaPage() {
   const [password2, setPassword2] = useState('')
   const [error, setError] = useState('')
 
-  // El link de invitación redirige acá con los tokens en el hash
-  // (#access_token=...&refresh_token=...). Los tomamos a mano para no
-  // depender del flujo automático del cliente.
+  // El link de invitación/reset llega de dos formas posibles:
+  //  1) Nuevo: a nuestro dominio con ?token_hash=...&type=invite|magiclink|recovery.
+  //     El token se canjea acá, en el cliente (verifyOtp). Como los bots de
+  //     previsualización de WhatsApp/email no ejecutan JS, no lo queman antes
+  //     de que la persona haga clic.
+  //  2) Viejo (SMTP de Supabase): redirige con los tokens en el hash
+  //     (#access_token=...&refresh_token=...). Lo dejamos como fallback.
   useEffect(() => {
     const supabase = createClient()
     async function init() {
+      const query = new URLSearchParams(window.location.search)
       const hash = new URLSearchParams(window.location.hash.substring(1))
-      const errDesc = hash.get('error_description')
+
+      const errDesc = hash.get('error_description') ?? query.get('error_description')
       if (errDesc) {
         setError(errDesc.replace(/\+/g, ' '))
         setStatus('invalid')
         return
       }
-      if (hash.get('type') === 'recovery') setIsRecovery(true)
-      const access_token = hash.get('access_token')
-      const refresh_token = hash.get('refresh_token')
-      if (access_token && refresh_token) {
-        const { error: sessErr } = await supabase.auth.setSession({ access_token, refresh_token })
-        if (!sessErr) {
+
+      const tokenHash = query.get('token_hash')
+      const tokenType = query.get('type')
+      if (tokenHash && tokenType) {
+        if (tokenType === 'recovery') setIsRecovery(true)
+        const { error: vErr } = await supabase.auth.verifyOtp({
+          token_hash: tokenHash,
+          type: tokenType as 'invite' | 'magiclink' | 'recovery',
+        })
+        if (vErr) {
+          setError(vErr.message)
+        } else {
           window.history.replaceState(null, '', window.location.pathname)
         }
+      } else {
+        if (hash.get('type') === 'recovery') setIsRecovery(true)
+        const access_token = hash.get('access_token')
+        const refresh_token = hash.get('refresh_token')
+        if (access_token && refresh_token) {
+          const { error: sessErr } = await supabase.auth.setSession({ access_token, refresh_token })
+          if (!sessErr) {
+            window.history.replaceState(null, '', window.location.pathname)
+          }
+        }
       }
+
       const { data: { session } } = await supabase.auth.getSession()
       if (session) {
         setName((session.user.user_metadata?.name as string) ?? null)

@@ -50,6 +50,7 @@ export async function POST(req: Request) {
   }
 
   // Usuario nuevo → invite (crea el usuario). Ya invitado sin confirmar → magiclink (re-link).
+  const linkType = existing ? 'magiclink' : 'invite'
   const { data, error } = await admin.auth.admin.generateLink(
     existing
       ? { type: 'magiclink', email, options: { redirectTo } }
@@ -59,7 +60,16 @@ export async function POST(req: Request) {
     console.error('[invite] generateLink failed', { email, exists: !!existing, message: error.message })
     return NextResponse.json({ error: `No se pudo generar la invitación: ${error.message}` }, { status: 500 })
   }
-  const inviteLink = data.properties?.action_link ?? null
+
+  // No compartimos el action_link directo de Supabase (/auth/v1/verify): es de un
+  // solo uso y los bots de previsualización de WhatsApp/email lo "queman" al
+  // generar la preview, por eso parecía vencerse en segundos. En su lugar armamos
+  // un link a NUESTRO dominio que lleva el token_hash; el token se canjea recién
+  // cuando la persona abre /bienvenida y corre el JS (los bots no ejecutan JS).
+  const tokenHash = data.properties?.hashed_token
+  const inviteLink = tokenHash
+    ? `${origin}/bienvenida?token_hash=${tokenHash}&type=${linkType}`
+    : (data.properties?.action_link ?? null)
 
   // El trigger on_auth_user_created crea la fila de agents para usuarios nuevos.
   let { data: agent } = await admin.from('agents').select('*').eq('email', email).maybeSingle()

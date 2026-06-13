@@ -38,7 +38,13 @@ export async function POST(req: Request) {
     if (error) {
       return NextResponse.json({ error: `No se pudo generar el link: ${error.message}` }, { status: 500 })
     }
-    return NextResponse.json({ reset_link: data.properties?.action_link ?? null })
+    // Link a nuestro dominio (no el verify de un solo uso de Supabase): así los
+    // bots de previsualización de WhatsApp no queman el token antes de tiempo.
+    const tokenHash = data.properties?.hashed_token
+    const link = tokenHash
+      ? `${origin}/bienvenida?token_hash=${tokenHash}&type=recovery`
+      : (data.properties?.action_link ?? null)
+    return NextResponse.json({ reset_link: link })
   }
 
   // ── Público: enviar el link por email, nunca devolverlo (anti toma-de-cuentas) ──
@@ -48,7 +54,10 @@ export async function POST(req: Request) {
     // no hacemos nada (y respondemos igual, anti-enumeración).
     const admin = createAdminClient()
     const { data, error } = await admin.auth.admin.generateLink({ type: 'recovery', email, options: { redirectTo } })
-    const link = data?.properties?.action_link
+    const tokenHash = data?.properties?.hashed_token
+    const link = tokenHash
+      ? `${origin}/bienvenida?token_hash=${tokenHash}&type=recovery`
+      : data?.properties?.action_link
     if (!error && link) {
       const name = (data.user?.user_metadata?.name as string) ?? ''
       await sendEmail({ to: email, subject: 'Restablecé tu contraseña · CRM Unnique', html: resetEmailHtml({ name, link }) })
