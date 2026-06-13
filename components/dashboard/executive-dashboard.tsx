@@ -40,10 +40,6 @@ function CardHeader({ children }: { children: React.ReactNode }) {
   )
 }
 
-// ── hardcoded 9-month data ────────────────────────────────────────────────────
-const MONTHS = ['Sep', 'Oct', 'Nov', 'Dic', 'Ene', 'Feb', 'Mar', 'Abr', 'May']
-const BAR_DATA = [180000, 210000, 195000, 240000, 220000, 270000, 290000, 310000, 285000]
-
 // ── origin donut data ─────────────────────────────────────────────────────────
 const ORIGIN_COLORS: Record<string, string> = {
   WhatsApp: 'var(--success)',
@@ -333,6 +329,33 @@ export default function ExecutiveDashboard({ leads, agents, dollarRate, dollarUp
 
   // KPI derivations
   const closed = useMemo(() => leads.filter(l => l.stage?.key === 'escritura'), [leads])
+
+  // Cierres del mes actual (escrituras con updated_at en el mes)
+  const closedThisMonth = useMemo(() => {
+    const monthStart = new Date(); monthStart.setDate(1); monthStart.setHours(0, 0, 0, 0)
+    return closed.filter(l => new Date(l.updated_at) >= monthStart)
+  }, [closed])
+
+  // Ingresos por mes (últimos 9 meses) derivados de cierres reales en USD.
+  // Sin columna closed_at, se usa updated_at como fecha de cierre aproximada.
+  const monthly = useMemo(() => {
+    const now = new Date()
+    const labels: string[] = []
+    const data: number[] = []
+    for (let i = 8; i >= 0; i--) {
+      const start = new Date(now.getFullYear(), now.getMonth() - i, 1)
+      const end = new Date(now.getFullYear(), now.getMonth() - i + 1, 1)
+      const usd = closed.reduce((s, l) => {
+        const d = new Date(l.updated_at)
+        if (d < start || d >= end) return s
+        if (!l.amount) return s
+        return s + (l.currency === 'USD' ? l.amount : l.amount / dollarRate)
+      }, 0)
+      labels.push(start.toLocaleDateString('es-AR', { month: 'short' }))
+      data.push(Math.round(usd))
+    }
+    return { labels, data }
+  }, [closed, dollarRate])
   const totalAmountUSD = useMemo(() => leads.reduce((s, l) => {
     if (!l.amount) return s
     return s + (l.currency === 'USD' ? l.amount : l.amount / dollarRate)
@@ -355,9 +378,14 @@ export default function ExecutiveDashboard({ leads, agents, dollarRate, dollarUp
     ? `≈ ARS ${compactNum(totalAmountUSD * dollarRate)}`
     : `≈ USD ${compactNum(totalAmountUSD)}`
 
+  const closedThisMonthUSD = useMemo(() => closedThisMonth.reduce((s, l) => {
+    if (!l.amount) return s
+    return s + (l.currency === 'USD' ? l.amount : l.amount / dollarRate)
+  }, 0), [closedThisMonth, dollarRate])
+
   const closedDisplay = currency === 'USD'
-    ? `USD ${compactNum(closedAmountUSD)}`
-    : `ARS ${compactNum(closedAmountUSD * dollarRate)}`
+    ? `USD ${compactNum(closedThisMonthUSD)}`
+    : `ARS ${compactNum(closedThisMonthUSD * dollarRate)}`
 
   const ticketDisplay = currency === 'USD'
     ? fmtUSD(avgTicketUSD)
@@ -437,7 +465,7 @@ export default function ExecutiveDashboard({ leads, agents, dollarRate, dollarUp
 
           <div style={{ background: '#fff', border: '1px solid var(--border)', borderRadius: 'var(--radius-lg)', padding: '18px 20px' }}>
             <div style={{ fontSize: 11, letterSpacing: '0.14em', textTransform: 'uppercase', color: 'var(--ink-3)', fontWeight: 600 }}>Cierres este mes</div>
-            <div className="num" style={{ fontFamily: 'var(--font-jakarta)', fontWeight: 700, fontSize: 30, marginTop: 8, letterSpacing: '-0.02em', color: 'var(--success)' }}>{closed.length}</div>
+            <div className="num" style={{ fontFamily: 'var(--font-jakarta)', fontWeight: 700, fontSize: 30, marginTop: 8, letterSpacing: '-0.02em', color: 'var(--success)' }}>{closedThisMonth.length}</div>
             <div style={{ fontSize: 11, color: 'var(--ink-3)', marginTop: 6 }}>{closedDisplay}</div>
           </div>
 
@@ -468,7 +496,7 @@ export default function ExecutiveDashboard({ leads, agents, dollarRate, dollarUp
               <span style={{ fontSize: 12, color: 'var(--ink-3)' }}>en {currency}</span>
             </CardHeader>
             <div style={{ padding: '20px 20px 16px' }}>
-              <BarChart data={BAR_DATA} labels={MONTHS} currency={currency} dollarRate={dollarRate} />
+              <BarChart data={monthly.data} labels={monthly.labels} currency={currency} dollarRate={dollarRate} />
             </div>
           </Card>
 

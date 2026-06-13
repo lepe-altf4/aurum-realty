@@ -46,22 +46,9 @@ function IconBtn({ title, children, color, onClick }: { title: string; children:
   )
 }
 
-// ── hardcoded tasks ──────────────────────────────────────────────────────────
-const TASKS = [
-  { id: 1, name: 'Florencia Bianchi', action: 'Llamar por revisita', time: '09:00', overdue: true, phone: '+5491112345678' },
-  { id: 2, name: 'Ramiro Achával', action: 'Enviar propuesta actualizada', time: '11:00', overdue: false, phone: '+5491187654321' },
-  { id: 3, name: 'Damián Ortega', action: 'Confirmar turno escritura', time: '14:30', overdue: false, phone: '+5491156781234' },
-  { id: 4, name: 'Martín Iraola', action: 'Seguimiento oferta pendiente', time: '16:00', overdue: true, phone: '+5491143217654' },
-]
-
-const EFFECTIVENESS = [
-  { name: 'Lucía Fernández', initials: 'LF', pct: 22, respMin: 3 },
-  { name: 'Martín Suárez', initials: 'MS', pct: 19, respMin: 5 },
-  { name: 'Valentina Ríos', initials: 'VR', pct: 16, respMin: 8 },
-  { name: 'Santiago Gómez', initials: 'SG', pct: 12, respMin: 12 },
-  { name: 'Andrea Torres', initials: 'AT', pct: 9, respMin: 18 },
-]
-
+// ⚠ NOTA: los "días promedio por etapa" siguen siendo una estimación fija —
+// calcular el real requiere historial de transiciones de etapa que hoy no se
+// registra. Lo dejo marcado para definir con vos cómo medirlo.
 const STAGE_AVG_DAYS: Record<string, number> = {
   consulta: 4, visita: 7, oferta: 12, reserva: 9, escritura: 18,
 }
@@ -267,6 +254,50 @@ export default function SalesPanel({ leads, stages, agents }: {
   const closedLeads = useMemo(() => leads.filter(l => l.stage?.key === 'escritura'), [leads])
   const atRiskUSD = useMemo(() => overdue.reduce((s, l) => s + (l.amount || 0), 0), [overdue])
 
+  const todayStr = new Date().toISOString().slice(0, 10)
+
+  // Leads nuevos esta semana vs. la semana anterior (por created_at)
+  const weekDelta = useMemo(() => {
+    const start = new Date(); start.setHours(0, 0, 0, 0)
+    const wk = new Date(start); wk.setDate(wk.getDate() - 7)
+    const wk2 = new Date(start); wk2.setDate(wk2.getDate() - 14)
+    const thisW = leads.filter(l => new Date(l.created_at) >= wk).length
+    const prevW = leads.filter(l => { const d = new Date(l.created_at); return d >= wk2 && d < wk }).length
+    const pct = prevW > 0 ? Math.round(((thisW - prevW) / prevW) * 100) : null
+    return { thisW, prevW, pct }
+  }, [leads])
+
+  // Tareas: leads con próxima acción hoy / vencidas (next_action_date)
+  const todayTasks = useMemo(
+    () => leads.filter(l => l.next_action_date && l.next_action_date.slice(0, 10) === todayStr),
+    [leads, todayStr]
+  )
+  const overdueTasks = useMemo(
+    () => leads.filter(l => l.next_action_date && l.next_action_date.slice(0, 10) < todayStr && l.stage?.key !== 'escritura'),
+    [leads, todayStr]
+  )
+
+  // Efectividad real por agente: conversión (cierres / asignados)
+  const effectiveness = useMemo(() => {
+    return agents
+      .map(a => {
+        const assigned = leads.filter(l => (l.owner_id ?? l.agent_id) === a.id)
+        const closed = assigned.filter(l => l.stage?.key === 'escritura')
+        const pct = assigned.length ? Math.round((closed.length / assigned.length) * 100) : 0
+        return { id: a.id, name: a.name, initials: a.initials || a.name.slice(0, 2).toUpperCase(), assigned: assigned.length, closed: closed.length, pct }
+      })
+      .filter(a => a.assigned > 0)
+      .sort((x, y) => y.pct - x.pct || y.closed - x.closed || y.assigned - x.assigned)
+      .slice(0, 5)
+  }, [agents, leads])
+  const maxEffPct = Math.max(...effectiveness.map(e => e.pct), 1)
+
+  // Cierres del mes actual (escrituras con updated_at en el mes)
+  const closedThisMonth = useMemo(() => {
+    const monthStart = new Date(); monthStart.setDate(1); monthStart.setHours(0, 0, 0, 0)
+    return closedLeads.filter(l => new Date(l.updated_at) >= monthStart)
+  }, [closedLeads])
+
   const stageCounts = useMemo(() => {
     const map: Record<string, number> = {}
     for (const s of stages) map[s.key] = 0
@@ -332,7 +363,7 @@ export default function SalesPanel({ leads, stages, agents }: {
               <div style={{ fontWeight: 600, fontSize: 13, color: 'var(--danger)', fontFamily: 'var(--font-jakarta)' }}>Atención requerida</div>
               <div style={{ fontSize: 12, color: 'var(--ink-2)', marginTop: 3 }}>
                 <strong>{overdue.length}</strong> leads sin contacto ≥5 días &nbsp;·&nbsp;
-                <strong>2</strong> tareas vencidas &nbsp;·&nbsp;
+                <strong>{overdueTasks.length}</strong> tareas vencidas &nbsp;·&nbsp;
                 <strong>{fmtUSD(atRiskUSD)}</strong> en riesgo
               </div>
             </div>
@@ -351,7 +382,16 @@ export default function SalesPanel({ leads, stages, agents }: {
             <div style={{ fontSize: 11, letterSpacing: '0.14em', textTransform: 'uppercase', color: 'var(--ink-3)', fontWeight: 600 }}>Leads Activos</div>
             <div className="num" style={{ fontFamily: 'var(--font-jakarta)', fontWeight: 700, fontSize: 30, marginTop: 8 }}>{totalLeads}</div>
             <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 8, fontSize: 12, color: 'var(--ink-3)' }}>
-              <span style={{ color: 'var(--success)', fontWeight: 600 }}>▲ +12%</span><span>vs. semana pasada</span>
+              {weekDelta.pct !== null ? (
+                <>
+                  <span style={{ color: weekDelta.pct >= 0 ? 'var(--success)' : 'var(--danger)', fontWeight: 600 }}>
+                    {weekDelta.pct >= 0 ? '▲' : '▼'} {weekDelta.pct >= 0 ? '+' : ''}{weekDelta.pct}%
+                  </span>
+                  <span>vs. semana pasada</span>
+                </>
+              ) : (
+                <span>{weekDelta.thisW} {weekDelta.thisW === 1 ? 'nuevo' : 'nuevos'} esta semana</span>
+              )}
             </div>
           </div>
 
@@ -389,8 +429,8 @@ export default function SalesPanel({ leads, stages, agents }: {
 
           <div style={{ background: '#fff', border: '1px solid var(--border)', borderRadius: 'var(--radius-lg)', padding: '18px 20px' }}>
             <div style={{ fontSize: 11, letterSpacing: '0.14em', textTransform: 'uppercase', color: 'var(--ink-3)', fontWeight: 600 }}>Cierres mes</div>
-            <div className="num" style={{ fontFamily: 'var(--font-jakarta)', fontWeight: 700, fontSize: 30, marginTop: 8, color: 'var(--success)' }}>{closedLeads.length}</div>
-            <div style={{ fontSize: 12, color: 'var(--ink-3)', marginTop: 8 }}>En etapa escritura</div>
+            <div className="num" style={{ fontFamily: 'var(--font-jakarta)', fontWeight: 700, fontSize: 30, marginTop: 8, color: 'var(--success)' }}>{closedThisMonth.length}</div>
+            <div style={{ fontSize: 12, color: 'var(--ink-3)', marginTop: 8 }}>Escrituras este mes</div>
           </div>
         </div>
 
@@ -404,58 +444,67 @@ export default function SalesPanel({ leads, stages, agents }: {
               <Card>
                 <CardHeader>
                   <h3 style={{ fontSize: 14, fontWeight: 700, fontFamily: 'var(--font-jakarta)' }}>Tareas de hoy</h3>
-                  <Tag variant="default">{TASKS.length}</Tag>
+                  <Tag variant="default">{todayTasks.length}</Tag>
                 </CardHeader>
                 <div>
-                  {TASKS.map(task => (
-                    <div key={task.id} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '12px 20px', borderBottom: '1px solid var(--border)' }}>
-                      <input type="checkbox" style={{ width: 16, height: 16, accentColor: 'var(--gold)', flexShrink: 0 }} />
-                      <div style={{ flex: 1, minWidth: 0 }}>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                          <span style={{ fontSize: 13, fontWeight: 600 }}>{task.name}</span>
-                          {task.overdue && <Tag variant="danger">Vencida</Tag>}
-                        </div>
-                        <div style={{ fontSize: 12, color: 'var(--ink-3)', marginTop: 2 }}>{task.action}</div>
-                      </div>
-                      <span style={{ fontSize: 12, color: 'var(--ink-4)', flexShrink: 0 }}>{task.time}</span>
-                      <div style={{ display: 'flex', gap: 6 }}>
-                        <IconBtn title="WhatsApp" color="var(--success)" onClick={() => window.open(`https://wa.me/${task.phone.replace(/\D/g,'')}`, '_blank')}>
-                          <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z"/></svg>
-                        </IconBtn>
-                        <IconBtn title="Llamar">
-                          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07A19.5 19.5 0 0 1 4.69 12 19.79 19.79 0 0 1 1.61 3.44 2 2 0 0 1 3.6 1.27h3a2 2 0 0 1 2 1.72c.127.96.361 1.903.7 2.81a2 2 0 0 1-.45 2.11L7.91 8.96a16 16 0 0 0 6.13 6.13l.96-.96a2 2 0 0 1 2.11-.45c.907.339 1.85.573 2.81.7A2 2 0 0 1 22 16.92z"/></svg>
-                        </IconBtn>
-                      </div>
+                  {todayTasks.length === 0 ? (
+                    <div style={{ padding: '24px 20px', textAlign: 'center', color: 'var(--ink-3)', fontSize: 13 }}>
+                      No hay acciones programadas para hoy
                     </div>
-                  ))}
+                  ) : todayTasks.map(lead => {
+                    const t = lead.next_action_date && lead.next_action_date.includes('T')
+                      ? lead.next_action_date.slice(11, 16) : '—'
+                    return (
+                      <div key={lead.id} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '12px 20px', borderBottom: '1px solid var(--border)', cursor: 'pointer' }} onClick={() => setOpenLead(lead)}>
+                        <input type="checkbox" style={{ width: 16, height: 16, accentColor: 'var(--gold)', flexShrink: 0 }} onClick={e => e.stopPropagation()} />
+                        <div style={{ flex: 1, minWidth: 0 }}>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                            <span style={{ fontSize: 13, fontWeight: 600 }}>{lead.name}</span>
+                            {lead.hot && <Tag variant="gold">HOT</Tag>}
+                          </div>
+                          <div style={{ fontSize: 12, color: 'var(--ink-3)', marginTop: 2, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                            {lead.stage?.name || 'Sin etapa'}{lead.property?.address ? ` · ${lead.property.address}` : ''}
+                          </div>
+                        </div>
+                        <span style={{ fontSize: 12, color: 'var(--ink-4)', flexShrink: 0 }}>{t}</span>
+                        <div style={{ display: 'flex', gap: 6 }} onClick={e => e.stopPropagation()}>
+                          <IconBtn title="WhatsApp" color="var(--success)" onClick={() => window.open(`https://wa.me/${lead.phone?.replace(/\D/g,'')}`, '_blank')}>
+                            <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z"/></svg>
+                          </IconBtn>
+                        </div>
+                      </div>
+                    )
+                  })}
                 </div>
               </Card>
 
               <Card>
                 <CardHeader>
                   <h3 style={{ fontSize: 14, fontWeight: 700, fontFamily: 'var(--font-jakarta)' }}>Efectividad del equipo</h3>
+                  <span style={{ fontSize: 11, color: 'var(--ink-3)' }}>conversión a escritura</span>
                 </CardHeader>
                 <div style={{ padding: '8px 0' }}>
-                  {EFFECTIVENESS.map(agent => {
-                    const respColor = agent.respMin <= 5 ? 'var(--success)' : agent.respMin <= 15 ? 'var(--ink-2)' : 'var(--danger)'
-                    return (
-                      <div key={agent.name} style={{ padding: '10px 20px', display: 'flex', alignItems: 'center', gap: 12 }}>
-                        <Avatar initials={agent.initials} size={32} />
-                        <div style={{ flex: 1, minWidth: 0 }}>
-                          <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4 }}>
-                            <span style={{ fontSize: 12, fontWeight: 600 }}>{agent.name}</span>
-                            <span style={{ fontSize: 12, fontWeight: 700, color: 'var(--ink)' }}>{agent.pct}%</span>
-                          </div>
-                          <div style={{ height: 4, background: 'var(--surface-2)', borderRadius: 2, overflow: 'hidden' }}>
-                            <div style={{ height: '100%', width: `${(agent.pct / 25) * 100}%`, background: 'var(--gold)', borderRadius: 2 }} />
-                          </div>
+                  {effectiveness.length === 0 ? (
+                    <div style={{ padding: '24px 20px', textAlign: 'center', color: 'var(--ink-3)', fontSize: 13 }}>
+                      Sin leads asignados todavía
+                    </div>
+                  ) : effectiveness.map(agent => (
+                    <div key={agent.id} style={{ padding: '10px 20px', display: 'flex', alignItems: 'center', gap: 12 }}>
+                      <Avatar initials={agent.initials} size={32} />
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4 }}>
+                          <span style={{ fontSize: 12, fontWeight: 600 }}>{agent.name}</span>
+                          <span style={{ fontSize: 12, fontWeight: 700, color: 'var(--ink)' }}>{agent.pct}%</span>
                         </div>
-                        <div style={{ fontSize: 11, color: respColor, fontWeight: 600, flexShrink: 0, minWidth: 48, textAlign: 'right' }}>
-                          {agent.respMin} min
+                        <div style={{ height: 4, background: 'var(--surface-2)', borderRadius: 2, overflow: 'hidden' }}>
+                          <div style={{ height: '100%', width: `${(agent.pct / maxEffPct) * 100}%`, background: 'var(--gold)', borderRadius: 2 }} />
                         </div>
                       </div>
-                    )
-                  })}
+                      <div style={{ fontSize: 11, color: 'var(--ink-3)', fontWeight: 600, flexShrink: 0, minWidth: 70, textAlign: 'right' }}>
+                        {agent.closed}/{agent.assigned} leads
+                      </div>
+                    </div>
+                  ))}
                 </div>
               </Card>
             </div>
