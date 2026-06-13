@@ -22,13 +22,14 @@ export default async function DashboardPage() {
     )
   }
 
-  const [leadsRes, agentsRes, orgRes, propsRes] = await Promise.all([
+  const [leadsRes, agentsRes, orgRes, propsRes, stagesRes] = await Promise.all([
     supabase
       .from('leads')
       .select('*, stage:pipeline_stages(id,name,position,key), property:properties(id,price_usd,price_ars,currency_listing)'),
     supabase.from('agents').select('*').order('name'),
     supabase.from('organization').select('*').limit(1).single(),
     supabase.from('properties').select('id,status').eq('status', 'Disponible'),
+    supabase.from('pipeline_stages').select('*').order('position'),
   ])
 
   if (leadsRes.error) {
@@ -46,6 +47,7 @@ export default async function DashboardPage() {
     <ExecutiveDashboard
       leads={visible}
       agents={agentsRes.data ?? []}
+      stages={stagesRes.data ?? []}
       dollarRate={org?.dollar_rate ?? 1200}
       dollarUpdatedAt={org?.dollar_rate_updated_at ?? null}
       dollarSource={org?.dollar_rate_source ?? 'manual'}

@@ -2,7 +2,7 @@
 import { useState, useMemo, useEffect } from 'react'
 import Topbar from '@/components/ui/topbar'
 import { compactNum, fmtUSD, fmtARS, timeAgo } from '@/lib/format'
-import type { Lead, Agent } from '@/lib/types'
+import type { Lead, Agent, PipelineStage } from '@/lib/types'
 
 // ── helpers ─────────────────────────────────────────────────────────────────
 function Avatar({ initials, size = 32 }: { initials: string; size?: number }) {
@@ -316,9 +316,10 @@ function PeriodModal({ onSelect, onClose }: {
 }
 
 // ── main component ────────────────────────────────────────────────────────────
-export default function ExecutiveDashboard({ leads, agents, dollarRate, dollarUpdatedAt = null, dollarSource = 'manual', activeProperties }: {
+export default function ExecutiveDashboard({ leads, agents, stages = [], dollarRate, dollarUpdatedAt = null, dollarSource = 'manual', activeProperties }: {
   leads: Lead[]
   agents: Agent[]
+  stages?: PipelineStage[]
   dollarRate: number
   dollarUpdatedAt?: string | null
   dollarSource?: 'auto' | 'manual'
@@ -405,6 +406,41 @@ export default function ExecutiveDashboard({ leads, agents, dollarRate, dollarUp
     label, count: originCounts[label] || 0, color: ORIGIN_COLORS[label],
   }))
 
+  // Embudo del negocio: por etapa, cantidad + valor $ (USD) + retención vs etapa previa.
+  // Cuello de botella = la transición con menor retención (donde más se pierde).
+  const funnel = useMemo(() => {
+    const rows = stages.map(s => {
+      const stl = leads.filter(l => l.stage?.key === s.key)
+      const usd = stl.reduce((sum, l) => sum + (l.amount ? (l.currency === 'USD' ? l.amount : l.amount / dollarRate) : 0), 0)
+      return { key: s.key, name: s.name, count: stl.length, usd }
+    })
+    let bnKey = ''; let minRet = Infinity
+    for (let i = 1; i < rows.length; i++) {
+      const prev = rows[i - 1].count
+      if (prev > 0) {
+        const ret = rows[i].count / prev
+        if (ret < minRet) { minRet = ret; bnKey = rows[i].key }
+      }
+    }
+    const maxCount = Math.max(...rows.map(r => r.count), 1)
+    return { rows, bnKey, maxCount }
+  }, [stages, leads, dollarRate])
+
+  // Canal por CIERRES (no solo por leads): qué origen genera más escrituras.
+  const channels = useMemo(() => {
+    const map: Record<string, { leads: number; closed: number }> = {}
+    for (const label of ORIGIN_LABELS) map[label] = { leads: 0, closed: 0 }
+    for (const l of leads) {
+      if (l.origin && map[l.origin]) {
+        map[l.origin].leads++
+        if (l.stage?.key === 'escritura') map[l.origin].closed++
+      }
+    }
+    const arr = ORIGIN_LABELS.map(label => ({ label, color: ORIGIN_COLORS[label], ...map[label] }))
+    const top = [...arr].filter(a => a.closed > 0).sort((a, b) => b.closed - a.closed)[0] ?? null
+    return { arr, top }
+  }, [leads])
+
   const agentStats = useMemo(() => {
     return agents.map(agent => {
       const agentLeads = leads.filter(l => l.agent_id === agent.id)
@@ -457,45 +493,84 @@ export default function ExecutiveDashboard({ leads, agents, dollarRate, dollarUp
 
       <div className="page-pad" style={{ padding: 24, display: 'flex', flexDirection: 'column', gap: 20, overflowY: 'auto', flex: 1 }}>
 
-        {/* ── 5 KPI Hero Row ── */}
-        <div className="stat-grid-5" style={{ display: 'grid', gridTemplateColumns: 'repeat(5,1fr)', gap: 14 }}>
-          <div style={{ background: '#fff', border: '1px solid var(--border)', borderRadius: 'var(--radius-lg)', padding: '18px 20px' }}>
-            <div style={{ fontSize: 11, letterSpacing: '0.14em', textTransform: 'uppercase', color: 'var(--ink-3)', fontWeight: 600 }}>Pipeline Total</div>
-            <div className="num" style={{ fontFamily: 'var(--font-jakarta)', fontWeight: 700, fontSize: 26, marginTop: 8, letterSpacing: '-0.02em' }}>{pipelineDisplay}</div>
-            <div style={{ fontSize: 11, color: 'var(--ink-3)', marginTop: 6 }}>{pipelineSub}</div>
-          </div>
+        {/* ── Row 1: Embudo del negocio (centro) + KPIs de apoyo (costado) ── */}
+        <div className="grid-2col-resp" style={{ display: 'grid', gridTemplateColumns: '1.6fr 1fr', gap: 16 }}>
+          <Card>
+            <CardHeader>
+              <h3 style={{ fontSize: 14, fontWeight: 700, fontFamily: 'var(--font-jakarta)' }}>Embudo del negocio · consulta → escritura</h3>
+              <span style={{ fontSize: 12, color: 'var(--ink-3)' }}>valor en {currency}</span>
+            </CardHeader>
+            <div style={{ padding: '8px 0 12px' }}>
+              <div style={{ display: 'grid', gridTemplateColumns: '120px 1fr 96px 64px', padding: '8px 20px', fontSize: 10.5, color: 'var(--ink-3)', fontWeight: 600, letterSpacing: '0.06em', textTransform: 'uppercase', borderBottom: '1px solid var(--border)' }}>
+                <span>Etapa</span><span>Valor en etapa</span>
+                <span style={{ textAlign: 'right' }}>Leads</span>
+                <span style={{ textAlign: 'right' }}>Pasa</span>
+              </div>
+              {funnel.rows.map((r, i) => {
+                const isBn = r.key === funnel.bnKey
+                const barW = Math.max(3, (r.count / funnel.maxCount) * 100)
+                const ret = i > 0 && funnel.rows[i - 1].count > 0 ? Math.round((r.count / funnel.rows[i - 1].count) * 100) : null
+                const usdShown = currency === 'USD' ? r.usd : r.usd * dollarRate
+                return (
+                  <div key={r.key} style={{ display: 'grid', gridTemplateColumns: '120px 1fr 96px 64px', padding: '12px 20px', alignItems: 'center', borderBottom: i < funnel.rows.length - 1 ? '1px solid var(--border)' : undefined, background: isBn ? 'var(--danger-soft)' : 'transparent' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                      {isBn && <span title="Cuello de botella" style={{ fontSize: 10 }}>⚠</span>}
+                      <span style={{ fontSize: 13, fontWeight: isBn ? 700 : 600, color: isBn ? 'var(--danger)' : 'var(--ink)' }}>{r.name}</span>
+                    </div>
+                    <div style={{ paddingRight: 14 }}>
+                      <div style={{ height: 22, background: 'var(--surface-2)', borderRadius: 4, overflow: 'hidden', position: 'relative' }}>
+                        <div style={{ height: '100%', width: `${barW}%`, background: isBn ? 'var(--danger)' : 'var(--gold)', opacity: isBn ? 1 : 0.85, borderRadius: 4, transition: 'width .5s' }} />
+                        <span className="num" style={{ position: 'absolute', left: 8, top: 0, height: 22, display: 'flex', alignItems: 'center', fontSize: 11, fontWeight: 600, color: barW > 30 ? '#fff' : 'var(--ink-2)' }}>
+                          {currency} {compactNum(usdShown)}
+                        </span>
+                      </div>
+                    </div>
+                    <div className="num" style={{ textAlign: 'right', fontWeight: 700, fontSize: 14 }}>{r.count}</div>
+                    <div className="num" style={{ textAlign: 'right', fontSize: 12, fontWeight: 600, color: ret !== null && ret < 50 ? 'var(--danger)' : 'var(--ink-3)' }}>
+                      {ret !== null ? `${ret}%` : '—'}
+                    </div>
+                  </div>
+                )
+              })}
+              <div style={{ padding: '12px 20px 4px', fontSize: 11.5, color: 'var(--ink-3)' }}>
+                {funnel.bnKey
+                  ? <>Cuello de botella en <strong style={{ color: 'var(--danger)' }}>{funnel.rows.find(r => r.key === funnel.bnKey)?.name}</strong>: es donde más leads se quedan en el camino.</>
+                  : 'Sin datos suficientes para detectar el cuello de botella.'}
+              </div>
+            </div>
+          </Card>
 
-          <div style={{ background: '#fff', border: '1px solid var(--border)', borderRadius: 'var(--radius-lg)', padding: '18px 20px' }}>
-            <div style={{ fontSize: 11, letterSpacing: '0.14em', textTransform: 'uppercase', color: 'var(--ink-3)', fontWeight: 600 }}>Cierres este mes</div>
-            <div className="num" style={{ fontFamily: 'var(--font-jakarta)', fontWeight: 700, fontSize: 30, marginTop: 8, letterSpacing: '-0.02em', color: 'var(--success)' }}>{closedThisMonth.length}</div>
-            <div style={{ fontSize: 11, color: 'var(--ink-3)', marginTop: 6 }}>{closedDisplay}</div>
-          </div>
-
-          <div style={{ background: '#fff', border: '1px solid var(--border)', borderRadius: 'var(--radius-lg)', padding: '18px 20px' }}>
-            <div style={{ fontSize: 11, letterSpacing: '0.14em', textTransform: 'uppercase', color: 'var(--ink-3)', fontWeight: 600 }}>Tasa de cierre</div>
-            <div className="num" style={{ fontFamily: 'var(--font-jakarta)', fontWeight: 700, fontSize: 30, marginTop: 8, letterSpacing: '-0.02em' }}>{closureRate}%</div>
-            <div style={{ fontSize: 11, color: 'var(--ink-3)', marginTop: 6 }}>Excluye nuevas consultas</div>
-          </div>
-
-          <div style={{ background: '#fff', border: '1px solid var(--border)', borderRadius: 'var(--radius-lg)', padding: '18px 20px' }}>
-            <div style={{ fontSize: 11, letterSpacing: '0.14em', textTransform: 'uppercase', color: 'var(--ink-3)', fontWeight: 600 }}>Ticket promedio</div>
-            <div className="num" style={{ fontFamily: 'var(--font-jakarta)', fontWeight: 700, fontSize: 22, marginTop: 8, letterSpacing: '-0.02em' }}>{ticketDisplay}</div>
-            <div style={{ fontSize: 11, color: 'var(--ink-3)', marginTop: 6 }}>Sobre cierres</div>
-          </div>
-
-          <div style={{ background: '#fff', border: '1px solid var(--border)', borderRadius: 'var(--radius-lg)', padding: '18px 20px' }}>
-            <div style={{ fontSize: 11, letterSpacing: '0.14em', textTransform: 'uppercase', color: 'var(--ink-3)', fontWeight: 600 }}>Propiedades activas</div>
-            <div className="num" style={{ fontFamily: 'var(--font-jakarta)', fontWeight: 700, fontSize: 30, marginTop: 8, letterSpacing: '-0.02em' }}>{activeProperties}</div>
-            <div style={{ fontSize: 11, color: 'var(--ink-3)', marginTop: 6 }}>En cartera disponible</div>
+          {/* KPIs de apoyo, apilados */}
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+            <div style={{ background: '#fff', border: '1px solid var(--border)', borderRadius: 'var(--radius-lg)', padding: '16px 18px' }}>
+              <div style={{ fontSize: 11, letterSpacing: '0.14em', textTransform: 'uppercase', color: 'var(--ink-3)', fontWeight: 600 }}>Pipeline Total</div>
+              <div className="num" style={{ fontFamily: 'var(--font-jakarta)', fontWeight: 700, fontSize: 24, marginTop: 6, letterSpacing: '-0.02em' }}>{pipelineDisplay}</div>
+              <div style={{ fontSize: 11, color: 'var(--ink-3)', marginTop: 4 }}>{pipelineSub}</div>
+            </div>
+            <div style={{ background: '#fff', border: '1px solid var(--border)', borderRadius: 'var(--radius-lg)', padding: '16px 18px' }}>
+              <div style={{ fontSize: 11, letterSpacing: '0.14em', textTransform: 'uppercase', color: 'var(--ink-3)', fontWeight: 600 }}>Cierres este mes</div>
+              <div className="num" style={{ fontFamily: 'var(--font-jakarta)', fontWeight: 700, fontSize: 24, marginTop: 6, color: 'var(--success)' }}>{closedThisMonth.length}</div>
+              <div style={{ fontSize: 11, color: 'var(--ink-3)', marginTop: 4 }}>{closedDisplay} · tasa {closureRate}%</div>
+            </div>
+            <div style={{ background: '#fff', border: '1px solid var(--border)', borderRadius: 'var(--radius-lg)', padding: '16px 18px' }}>
+              <div style={{ fontSize: 11, letterSpacing: '0.14em', textTransform: 'uppercase', color: 'var(--ink-3)', fontWeight: 600 }}>Ticket promedio</div>
+              <div className="num" style={{ fontFamily: 'var(--font-jakarta)', fontWeight: 700, fontSize: 22, marginTop: 6 }}>{ticketDisplay}</div>
+              <div style={{ fontSize: 11, color: 'var(--ink-3)', marginTop: 4 }}>Sobre cierres</div>
+            </div>
+            <div style={{ background: '#fff', border: '1px solid var(--border)', borderRadius: 'var(--radius-lg)', padding: '16px 18px' }}>
+              <div style={{ fontSize: 11, letterSpacing: '0.14em', textTransform: 'uppercase', color: 'var(--ink-3)', fontWeight: 600 }}>Propiedades activas</div>
+              <div className="num" style={{ fontFamily: 'var(--font-jakarta)', fontWeight: 700, fontSize: 24, marginTop: 6 }}>{activeProperties}</div>
+              <div style={{ fontSize: 11, color: 'var(--ink-3)', marginTop: 4 }}>En cartera disponible</div>
+            </div>
           </div>
         </div>
 
-        {/* ── Row 2: Bar chart + Donut ── */}
-        <div className="grid-2col-resp" style={{ display: 'grid', gridTemplateColumns: '1.4fr 1fr', gap: 16 }}>
+        {/* ── Row 2: Ingresos por mes (franja inferior) + Origen accionable ── */}
+        <div className="grid-2col-resp" style={{ display: 'grid', gridTemplateColumns: '1.6fr 1fr', gap: 16 }}>
           <Card>
             <CardHeader>
               <h3 style={{ fontSize: 14, fontWeight: 700, fontFamily: 'var(--font-jakarta)' }}>Ingresos por mes · últimos 9 meses</h3>
-              <span style={{ fontSize: 12, color: 'var(--ink-3)' }}>en {currency}</span>
+              <span style={{ fontSize: 12, color: 'var(--ink-3)' }}>cierres reales · en {currency}</span>
             </CardHeader>
             <div style={{ padding: '20px 20px 16px' }}>
               <BarChart data={monthly.data} labels={monthly.labels} currency={currency} dollarRate={dollarRate} />
@@ -504,10 +579,30 @@ export default function ExecutiveDashboard({ leads, agents, dollarRate, dollarUp
 
           <Card>
             <CardHeader>
-              <h3 style={{ fontSize: 14, fontWeight: 700, fontFamily: 'var(--font-jakarta)' }}>Distribución por origen</h3>
+              <h3 style={{ fontSize: 14, fontWeight: 700, fontFamily: 'var(--font-jakarta)' }}>Origen de los leads</h3>
             </CardHeader>
-            <div style={{ padding: 20 }}>
+            <div style={{ padding: '16px 20px 8px' }}>
               <DonutChart data={originData} />
+            </div>
+            {/* Accionable: qué canal genera más CIERRES, no solo leads */}
+            <div style={{ padding: '4px 20px 18px' }}>
+              {channels.top && (
+                <div style={{ padding: '10px 12px', borderRadius: 'var(--radius)', background: 'var(--gold-soft)', border: '1px solid #E2D4B5', marginBottom: 12, fontSize: 12, color: '#6E5630' }}>
+                  Mejor canal por cierres: <strong>{channels.top.label}</strong> ({channels.top.closed} {channels.top.closed === 1 ? 'cierre' : 'cierres'})
+                </div>
+              )}
+              <div style={{ fontSize: 10.5, color: 'var(--ink-3)', fontWeight: 600, letterSpacing: '0.06em', textTransform: 'uppercase', marginBottom: 6 }}>Conversión por canal</div>
+              {channels.arr.filter(c => c.leads > 0).sort((a, b) => b.closed - a.closed || b.leads - a.leads).map(c => {
+                const conv = c.leads > 0 ? Math.round((c.closed / c.leads) * 100) : 0
+                return (
+                  <div key={c.label} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '5px 0', fontSize: 12 }}>
+                    <span style={{ width: 8, height: 8, borderRadius: '50%', background: c.color, flexShrink: 0 }} />
+                    <span style={{ flex: 1, color: 'var(--ink-2)' }}>{c.label}</span>
+                    <span className="num" style={{ color: 'var(--ink-3)' }}>{c.closed}/{c.leads}</span>
+                    <span className="num" style={{ fontWeight: 700, color: conv > 0 ? 'var(--gold)' : 'var(--ink-4)', minWidth: 38, textAlign: 'right' }}>{conv}%</span>
+                  </div>
+                )
+              })}
             </div>
           </Card>
         </div>
