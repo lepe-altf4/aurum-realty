@@ -1,4 +1,4 @@
-'use client'
+﻿'use client'
 import { useState, useMemo } from 'react'
 import Topbar from '@/components/ui/topbar'
 import { StatusTag, OpTag, Tag } from '@/components/ui/tags'
@@ -146,96 +146,6 @@ function PropertyDetailModal({ property, dollarRate = 0, onClose, onCoverChange 
   )
 }
 
-// ── ZonaProp import modal ─────────────────────────────────────────────────────
-function ZonaPropModal({ onClose, onImported }: { onClose: () => void; onImported: (p: Property) => void }) {
-  const [url, setUrl] = useState('')
-  const [loading, setLoading] = useState(false)
-  const [error, setError] = useState('')
-  const supabase = createClient()
-
-  async function handleImport() {
-    const trimmed = url.trim()
-    if (!trimmed) return
-    if (!trimmed.includes('zonaprop.com.ar')) {
-      setError('Ingresá una URL válida de ZonaProp')
-      return
-    }
-    setLoading(true)
-    setError('')
-    // Parse listing ID from URL: zonaprop.com.ar/.../XXXXXXXX.html
-    const match = trimmed.match(/(\d{6,})/)
-    const listingId = match?.[1] ?? Date.now().toString()
-
-    // Since we cannot fetch external URLs from the browser due to CORS,
-    // we create a placeholder property with the URL as source
-    const { data, error: insertError } = await supabase
-      .from('properties')
-      .insert({
-        address: `Importado de ZonaProp · ID ${listingId}`,
-        neighborhood: null,
-        type: 'Departamento',
-        operation: 'Venta',
-        status: 'Disponible',
-        currency_listing: 'USD',
-        price_usd: null,
-        price_ars: null,
-        premium: false,
-        description: `Importado desde: ${trimmed}`,
-      })
-      .select()
-      .single()
-
-    if (insertError) {
-      setError('Error al importar. Verificá tu conexión.')
-    } else if (data) {
-      onImported(data as Property)
-      onClose()
-    }
-    setLoading(false)
-  }
-
-  return (
-    <>
-      <div onClick={onClose} style={{ position: 'fixed', inset: 0, background: 'rgba(36,25,17,0.4)', backdropFilter: 'blur(2px)', zIndex: 80 }} />
-      <div style={{ position: 'fixed', top: '50%', left: '50%', transform: 'translate(-50%,-50%)', width: 460, background: '#fff', borderRadius: 'var(--radius-lg)', border: '1px solid var(--border)', boxShadow: '0 24px 80px rgba(36,25,17,.22)', zIndex: 90, overflow: 'hidden' }}>
-        <div style={{ padding: '18px 22px 14px', borderBottom: '1px solid var(--border)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-          <div>
-            <div style={{ fontSize: 10.5, color: 'var(--ink-3)', textTransform: 'uppercase', letterSpacing: '0.12em', fontWeight: 600 }}>IMPORTAR</div>
-            <div style={{ fontWeight: 700, fontSize: 16, marginTop: 2 }}>Importar desde ZonaProp</div>
-          </div>
-          <button onClick={onClose} style={{ width: 30, height: 30, display: 'grid', placeItems: 'center', border: '1px solid var(--border)', borderRadius: 'var(--radius-sm)', background: '#fff', cursor: 'pointer' }}>
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round"><path d="M6 6l12 12M18 6 6 18" /></svg>
-          </button>
-        </div>
-        <div style={{ padding: '20px 22px 22px', display: 'flex', flexDirection: 'column', gap: 14 }}>
-          <div style={{ padding: '12px 16px', background: 'var(--surface)', borderRadius: 'var(--radius)', border: '1px solid var(--border)', fontSize: 12, color: 'var(--ink-3)' }}>
-            Pegá la URL de la publicación de ZonaProp y la importaremos a tu inventario.
-          </div>
-          <div>
-            <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--ink-2)', marginBottom: 6 }}>URL de la publicación</div>
-            <input
-              autoFocus
-              value={url}
-              onChange={e => { setUrl(e.target.value); setError('') }}
-              placeholder="https://www.zonaprop.com.ar/propiedades/..."
-              style={{ width: '100%', padding: '9px 12px', borderRadius: 8, border: `1px solid ${error ? 'var(--danger)' : 'var(--border)'}`, fontSize: 13, fontFamily: 'inherit', color: 'var(--ink)', outline: 'none' }}
-            />
-            {error && <div style={{ fontSize: 12, color: 'var(--danger)', marginTop: 4 }}>{error}</div>}
-          </div>
-          <div style={{ display: 'flex', gap: 10 }}>
-            <button onClick={onClose} style={{ flex: 1, padding: '10px', borderRadius: 'var(--radius)', border: '1px solid var(--border)', background: '#fff', fontSize: 13, fontWeight: 600, cursor: 'pointer', color: 'var(--ink)' }}>
-              Cancelar
-            </button>
-            <button onClick={handleImport} disabled={loading || !url.trim()} style={{ flex: 1, padding: '10px', borderRadius: 'var(--radius)', border: 'none', background: 'var(--ink)', color: '#fff', fontSize: 13, fontWeight: 600, cursor: url.trim() && !loading ? 'pointer' : 'not-allowed', opacity: url.trim() && !loading ? 1 : 0.5 }}>
-              {loading ? 'Importando…' : 'Importar propiedad'}
-            </button>
-          </div>
-        </div>
-      </div>
-    </>
-  )
-}
-
 // ── Property row context menu ─────────────────────────────────────────────────
 function ContextMenu({ property, onClose, onStatusChange, onDelete }: {
   property: Property
@@ -295,7 +205,6 @@ export default function PropertiesView({ initialProperties, dollarRate = 0 }: { 
   const [typeFilter, setTypeFilter] = useState('Todos')
   const [search, setSearch] = useState('')
   const [showNewProperty, setShowNewProperty] = useState(false)
-  const [showZonaProp, setShowZonaProp] = useState(false)
   const [detailProperty, setDetailProperty] = useState<Property | null>(null)
   const [contextMenuId, setContextMenuId] = useState<string | null>(null)
 
@@ -341,10 +250,6 @@ export default function PropertiesView({ initialProperties, dollarRate = 0 }: { 
         search={false}
         right={
           <div style={{ display: 'flex', gap: 8 }}>
-            <button onClick={() => setShowZonaProp(true)} style={{ display: 'inline-flex', alignItems: 'center', gap: 8, padding: '9px 14px', borderRadius: 'var(--radius)', fontWeight: 600, fontSize: 13, border: '1px solid var(--border)', background: '#fff', color: 'var(--ink)', cursor: 'pointer' }}>
-              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round"><path d="M12 4v12m0 0-4-4m4 4 4-4M5 20h14" /></svg>
-              Importar ZonaProp
-            </button>
             <button onClick={() => setShowNewProperty(true)} style={{ display: 'inline-flex', alignItems: 'center', gap: 8, padding: '9px 14px', borderRadius: 'var(--radius)', fontWeight: 600, fontSize: 13, border: 'none', background: 'var(--accent)', color: '#fff', cursor: 'pointer' }}>
               <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round"><path d="M12 5v14M5 12h14" /></svg>
               Nueva Propiedad
@@ -513,13 +418,6 @@ export default function PropertiesView({ initialProperties, dollarRate = 0 }: { 
         <NewPropertyModal
           onClose={() => setShowNewProperty(false)}
           onCreated={handlePropertyCreated}
-        />
-      )}
-
-      {showZonaProp && (
-        <ZonaPropModal
-          onClose={() => setShowZonaProp(false)}
-          onImported={handlePropertyCreated}
         />
       )}
 
