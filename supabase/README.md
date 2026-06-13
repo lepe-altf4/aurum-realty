@@ -33,15 +33,27 @@ CRON_SECRET=<opcional: protege los endpoints de cron>
 Nota: están marcadas *sensitive* en Vercel — `vercel env pull` las baja vacías;
 solo el runtime las ve.
 
-## Emails de invitación
+## Emails de invitación y reset
 
-- Plantilla: `docs/supabase-invite-email-template.html` → pegar en
-  Supabase → Authentication → Emails → Templates → **Invite user**.
-- La URL de redirección `/bienvenida` debe estar permitida en
-  Supabase → Authentication → URL Configuration → **Redirect URLs**
-  (ej: `https://tu-dominio.vercel.app/bienvenida`).
-- Si el SMTP no está configurado (o Resend sin dominio verificado), la app
-  igual genera un **link de invitación copiable** para mandar por WhatsApp.
+La app manda los emails **ella misma** vía Resend (no depende del SMTP de
+Supabase). Para activarlo:
+
+1. Crear cuenta en [resend.com](https://resend.com) y generar una **API Key**.
+2. Verificar un dominio propio (ej. `unnique.com.ar`) en Resend → Domains.
+   Para una prueba rápida podés usar el remitente `onboarding@resend.dev`,
+   pero solo entrega al email dueño de la cuenta de Resend.
+3. En Vercel → Project Settings → Environment Variables, agregar:
+   - `RESEND_API_KEY` = la API key
+   - `EMAIL_FROM` = `Unnique CRM <equipo@tudominio.com>` (dominio verificado)
+   Redeploy.
+
+Con eso, invitar un agente y "olvidé mi contraseña" envían el email
+automáticamente. **Sin** `RESEND_API_KEY`, la app cae al **link copiable**
+(invitaciones) — todo sigue funcionando, solo que se comparte a mano.
+
+Requisito en ambos casos: `/bienvenida` debe estar en
+Supabase → Authentication → URL Configuration → **Redirect URLs**
+(ej: `https://aurum-realty-zeta.vercel.app/bienvenida`).
 
 ## Dólar
 

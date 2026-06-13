@@ -1,6 +1,8 @@
 import { NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
+import { sendEmail, emailEnabled } from '@/lib/email'
+import { resetEmailHtml } from '@/lib/email-templates'
 
 export const dynamic = 'force-dynamic'
 
@@ -39,8 +41,22 @@ export async function POST(req: Request) {
     return NextResponse.json({ reset_link: data.properties?.action_link ?? null })
   }
 
-  // ── Público: solo enviar el email (no exponer link) ──
-  // Nota: Supabase no revela si el email existe (anti-enumeración).
-  await supabase.auth.resetPasswordForEmail(email, { redirectTo })
+  // ── Público: enviar el link por email, nunca devolverlo (anti toma-de-cuentas) ──
+  if (emailEnabled()) {
+    // Generamos el link de recovery y lo mandamos nosotros por Resend.
+    // generateLink solo arma el link para un usuario existente; si no existe,
+    // no hacemos nada (y respondemos igual, anti-enumeración).
+    const admin = createAdminClient()
+    const { data, error } = await admin.auth.admin.generateLink({ type: 'recovery', email, options: { redirectTo } })
+    const link = data?.properties?.action_link
+    if (!error && link) {
+      const name = (data.user?.user_metadata?.name as string) ?? ''
+      await sendEmail({ to: email, subject: 'Restablecé tu contraseña · CRM Unnique', html: resetEmailHtml({ name, link }) })
+    }
+  } else {
+    // Sin proveedor propio: intento por el SMTP de Supabase (si está configurado).
+    await supabase.auth.resetPasswordForEmail(email, { redirectTo })
+  }
+  // Respuesta neutra siempre (no revela si el email existe).
   return NextResponse.json({ emailed: true })
 }

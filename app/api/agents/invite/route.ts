@@ -1,6 +1,8 @@
 import { NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
+import { sendEmail, emailEnabled } from '@/lib/email'
+import { inviteEmailHtml } from '@/lib/email-templates'
 import type { SupabaseClient, User } from '@supabase/supabase-js'
 
 const VALID_ROLES = ['Admin', 'Agente'] as const
@@ -72,9 +74,23 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: 'Invitación creada pero no pude leer el agente. Recargá la página.' }, { status: 500 })
   }
 
+  // Si hay proveedor de email configurado, mandamos la invitación branded.
+  let emailed = false
+  if (inviteLink && emailEnabled()) {
+    const r = await sendEmail({
+      to: email,
+      subject: 'Te invitamos al CRM de Unnique',
+      html: inviteEmailHtml({ name, role, link: inviteLink }),
+    })
+    emailed = r.ok
+  }
+
   return NextResponse.json({
     agent,
     invite_link: inviteLink,
-    notice: 'Invitación lista. Compartí este link con la persona: entra, crea su contraseña y queda dentro del CRM.',
+    emailed,
+    notice: emailed
+      ? `Le enviamos la invitación por email a ${email}. También podés compartir este link por las dudas.`
+      : 'Invitación lista. Compartí este link con la persona: entra, crea su contraseña y queda dentro del CRM.',
   }, { status: 201 })
 }
