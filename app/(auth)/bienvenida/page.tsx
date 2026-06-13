@@ -6,9 +6,27 @@ import { createClient } from '@/lib/supabase/client'
 type Status = 'processing' | 'ready' | 'invalid' | 'saving'
 
 const inputStyle: React.CSSProperties = {
-  padding: '9px 12px', borderRadius: 'var(--radius)', border: '1px solid var(--border)',
+  padding: '9px 40px 9px 12px', borderRadius: 'var(--radius)', border: '1px solid var(--border)',
   fontSize: 14, outline: 'none', background: 'var(--surface)',
-  fontFamily: 'inherit', color: 'var(--ink)',
+  fontFamily: 'inherit', color: 'var(--ink)', width: '100%', boxSizing: 'border-box',
+}
+
+function EyeIcon({ off }: { off?: boolean }) {
+  return off ? (
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M9.88 9.88a3 3 0 0 0 4.24 4.24" /><path d="M10.73 5.08A10.43 10.43 0 0 1 12 5c7 0 10 7 10 7a13.16 13.16 0 0 1-1.67 2.68" /><path d="M6.61 6.61A13.526 13.526 0 0 0 2 12s3 7 10 7a9.74 9.74 0 0 0 5.39-1.61" /><line x1="2" y1="2" x2="22" y2="22" />
+    </svg>
+  ) : (
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7z" /><circle cx="12" cy="12" r="3" />
+    </svg>
+  )
+}
+
+const eyeBtnStyle: React.CSSProperties = {
+  position: 'absolute', right: 8, top: '50%', transform: 'translateY(-50%)',
+  background: 'none', border: 'none', cursor: 'pointer', color: 'var(--ink-3)',
+  padding: 4, display: 'grid', placeItems: 'center', lineHeight: 0,
 }
 
 export default function BienvenidaPage() {
@@ -18,6 +36,7 @@ export default function BienvenidaPage() {
   const [isRecovery, setIsRecovery] = useState(false)
   const [password, setPassword] = useState('')
   const [password2, setPassword2] = useState('')
+  const [showPwd, setShowPwd] = useState(false)
   const [error, setError] = useState('')
 
   // El link de invitación/reset llega de dos formas posibles:
@@ -142,19 +161,29 @@ export default function BienvenidaPage() {
         <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
             <label style={{ fontSize: 11, fontWeight: 600, letterSpacing: '0.08em', textTransform: 'uppercase', color: 'var(--ink-3)' }}>Nueva contraseña</label>
-            <input
-              type="password" required autoFocus value={password}
-              onChange={e => setPassword(e.target.value)}
-              placeholder="Mínimo 8 caracteres" style={inputStyle}
-            />
+            <div style={{ position: 'relative' }}>
+              <input
+                type={showPwd ? 'text' : 'password'} required autoFocus value={password}
+                onChange={e => setPassword(e.target.value)}
+                placeholder="Mínimo 8 caracteres" style={inputStyle}
+              />
+              <button type="button" onClick={() => setShowPwd(v => !v)} title={showPwd ? 'Ocultar contraseña' : 'Mostrar contraseña'} aria-label={showPwd ? 'Ocultar contraseña' : 'Mostrar contraseña'} style={eyeBtnStyle}>
+                <EyeIcon off={showPwd} />
+              </button>
+            </div>
           </div>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
             <label style={{ fontSize: 11, fontWeight: 600, letterSpacing: '0.08em', textTransform: 'uppercase', color: 'var(--ink-3)' }}>Repetir contraseña</label>
-            <input
-              type="password" required value={password2}
-              onChange={e => setPassword2(e.target.value)}
-              placeholder="••••••••" style={inputStyle}
-            />
+            <div style={{ position: 'relative' }}>
+              <input
+                type={showPwd ? 'text' : 'password'} required value={password2}
+                onChange={e => setPassword2(e.target.value)}
+                placeholder="••••••••" style={inputStyle}
+              />
+              <button type="button" onClick={() => setShowPwd(v => !v)} title={showPwd ? 'Ocultar contraseña' : 'Mostrar contraseña'} aria-label={showPwd ? 'Ocultar contraseña' : 'Mostrar contraseña'} style={eyeBtnStyle}>
+                <EyeIcon off={showPwd} />
+              </button>
+            </div>
           </div>
           {error && <p style={{ color: 'var(--danger)', fontSize: 13, margin: 0 }}>{error}</p>}
           <button
