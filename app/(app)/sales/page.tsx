@@ -1,4 +1,3 @@
-import { redirect } from 'next/navigation'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { getViewer, leadOwnerId } from '@/lib/viewer'
 import SalesPanel from '@/components/sales/sales-panel'
@@ -7,10 +6,7 @@ import type { Lead, Organization } from '@/lib/types'
 export const dynamic = 'force-dynamic'
 
 export default async function SalesPage() {
-  const { agent: viewer, isAdmin } = await getViewer()
-
-  // El Panel de Ventas es la pantalla operativa del agente. El Admin va al Ejecutivo.
-  if (isAdmin) redirect('/dashboard')
+  const { agent: viewer } = await getViewer()
 
   let supabase
   try {
@@ -38,7 +34,8 @@ export default async function SalesPage() {
     console.error('[SalesPage] leads query error:', leadsRes.error)
   }
 
-  // Cada agente ve solo sus leads (filtro server-side).
+  // Panel personal: todos (Admin incluido) ven SOLO sus propios leads asignados.
+  // La vista gerencial del equipo vive en el Ejecutivo, no acá.
   const all = (leadsRes.data ?? []) as Lead[]
   const visible = all.filter(l => leadOwnerId(l) === viewer?.id)
 

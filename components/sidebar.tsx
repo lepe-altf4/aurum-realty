@@ -8,7 +8,7 @@ const NAV: { href: string; label: string; icon: string; adminOnly?: boolean; age
   { href: '/leads/pozo', label: 'Pozo de Leads',      icon: 'pool' },
   { href: '/leads',      label: 'Mis Leads',          icon: 'leads', exact: true },
   { href: '/pipeline',   label: 'Pipeline',           icon: 'pipeline' },
-  { href: '/sales',      label: 'Panel de Ventas',    icon: 'sales', agentOnly: true },
+  { href: '/sales',      label: 'Panel de Ventas',    icon: 'sales' },
   { href: '/properties', label: 'Propiedades',        icon: 'property' },
   { href: '/dashboard',  label: 'Executive Dashboard',icon: 'dashboard', adminOnly: true },
   { href: '/settings',   label: 'Admin Settings',     icon: 'settings', adminOnly: true },
