@@ -40,6 +40,16 @@ function CardHeader({ children }: { children: React.ReactNode }) {
   )
 }
 
+function KpiCard({ label, value, sub, color }: { label: string; value: string | number; sub?: string; color?: string }) {
+  return (
+    <div style={{ background: '#fff', border: '1px solid var(--border)', borderRadius: 'var(--radius-lg)', padding: '18px 20px' }}>
+      <div style={{ fontSize: 11, letterSpacing: '0.14em', textTransform: 'uppercase', color: 'var(--ink-3)', fontWeight: 600 }}>{label}</div>
+      <div className="num" style={{ fontFamily: 'var(--font-jakarta)', fontWeight: 700, fontSize: 26, marginTop: 8, letterSpacing: '-0.02em', color: color || 'var(--ink)' }}>{value}</div>
+      {sub && <div style={{ fontSize: 11.5, color: 'var(--ink-3)', marginTop: 6 }}>{sub}</div>}
+    </div>
+  )
+}
+
 // ── origin donut data ─────────────────────────────────────────────────────────
 const ORIGIN_COLORS: Record<string, string> = {
   WhatsApp: 'var(--success)',
@@ -331,6 +341,8 @@ export default function ExecutiveDashboard({ leads, agents, stages = [], dollarR
 
   const newLeads = useMemo(() => leads.filter(l => l.stage?.key === 'consulta').length, [leads])
   const closureRate = leads.length - newLeads > 0 ? ((closed.length / (leads.length - newLeads)) * 100).toFixed(1) : '0.0'
+  // Conversión global: cierres sobre el total de leads (leads → escritura).
+  const conversionGlobal = leads.length > 0 ? Math.round((closed.length / leads.length) * 100) : 0
   const avgTicketUSD = closed.length > 0 ? closedAmountUSD / closed.length : 0
 
   // Pipeline display value
@@ -453,7 +465,18 @@ export default function ExecutiveDashboard({ leads, agents, stages = [], dollarR
 
       <div className="page-pad" style={{ padding: 24, display: 'flex', flexDirection: 'column', gap: 20, overflowY: 'auto', flex: 1 }}>
 
-        {/* ── Row 1: Embudo del negocio (centro) + KPIs de apoyo (costado) ── */}
+        {/* ── Row 1: KPIs reales del negocio ── */}
+        <div className="stat-grid-4" style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 14 }}>
+          <KpiCard label="Pipeline Total" value={pipelineDisplay} sub={pipelineSub} />
+          <KpiCard label="Cierres del mes" value={closedThisMonth.length} sub={`${closedDisplay} cerrados`} color="var(--success)" />
+          <KpiCard label="Ticket promedio" value={ticketDisplay} sub="Sobre cierres" />
+          <KpiCard label="Conversión global" value={`${conversionGlobal}%`} sub="leads → escritura" />
+        </div>
+        <div style={{ marginTop: -8, fontSize: 12, color: 'var(--ink-3)' }}>
+          <span className="num" style={{ fontWeight: 700, color: 'var(--ink-2)' }}>{activeProperties}</span> propiedades activas en cartera
+        </div>
+
+        {/* ── Row 2: Embudo por valor (izq) + Conversión por canal (der) ── */}
         <div className="grid-2col-resp" style={{ display: 'grid', gridTemplateColumns: '1.6fr 1fr', gap: 16 }}>
           <Card>
             <CardHeader>
@@ -494,74 +517,15 @@ export default function ExecutiveDashboard({ leads, agents, stages = [], dollarR
               })}
               <div style={{ padding: '12px 20px 4px', fontSize: 11.5, color: 'var(--ink-3)' }}>
                 {funnel.bnKey
-                  ? <>Cuello de botella en <strong style={{ color: 'var(--danger)' }}>{funnel.rows.find(r => r.key === funnel.bnKey)?.name}</strong>: es donde más leads se quedan en el camino.</>
+                  ? <>Cuello de botella en <strong style={{ color: 'var(--danger)' }}>{funnel.rows.find(r => r.key === funnel.bnKey)?.name}</strong>: es la etapa con menor retención (donde más leads se quedan sin avanzar).</>
                   : 'Sin datos suficientes para detectar el cuello de botella.'}
               </div>
             </div>
           </Card>
 
-          {/* KPIs de apoyo, apilados */}
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
-            <div style={{ background: '#fff', border: '1px solid var(--border)', borderRadius: 'var(--radius-lg)', padding: '16px 18px' }}>
-              <div style={{ fontSize: 11, letterSpacing: '0.14em', textTransform: 'uppercase', color: 'var(--ink-3)', fontWeight: 600 }}>Pipeline Total</div>
-              <div className="num" style={{ fontFamily: 'var(--font-jakarta)', fontWeight: 700, fontSize: 24, marginTop: 6, letterSpacing: '-0.02em' }}>{pipelineDisplay}</div>
-              <div style={{ fontSize: 11, color: 'var(--ink-3)', marginTop: 4 }}>{pipelineSub}</div>
-            </div>
-            <div style={{ background: '#fff', border: '1px solid var(--border)', borderRadius: 'var(--radius-lg)', padding: '16px 18px' }}>
-              <div style={{ fontSize: 11, letterSpacing: '0.14em', textTransform: 'uppercase', color: 'var(--ink-3)', fontWeight: 600 }}>Cierres este mes</div>
-              <div className="num" style={{ fontFamily: 'var(--font-jakarta)', fontWeight: 700, fontSize: 24, marginTop: 6, color: 'var(--success)' }}>{closedThisMonth.length}</div>
-              <div style={{ fontSize: 11, color: 'var(--ink-3)', marginTop: 4 }}>{closedDisplay} · tasa {closureRate}%</div>
-            </div>
-            <div style={{ background: '#fff', border: '1px solid var(--border)', borderRadius: 'var(--radius-lg)', padding: '16px 18px' }}>
-              <div style={{ fontSize: 11, letterSpacing: '0.14em', textTransform: 'uppercase', color: 'var(--ink-3)', fontWeight: 600 }}>Ticket promedio</div>
-              <div className="num" style={{ fontFamily: 'var(--font-jakarta)', fontWeight: 700, fontSize: 22, marginTop: 6 }}>{ticketDisplay}</div>
-              <div style={{ fontSize: 11, color: 'var(--ink-3)', marginTop: 4 }}>Sobre cierres</div>
-            </div>
-            <div style={{ background: '#fff', border: '1px solid var(--border)', borderRadius: 'var(--radius-lg)', padding: '16px 18px' }}>
-              <div style={{ fontSize: 11, letterSpacing: '0.14em', textTransform: 'uppercase', color: 'var(--ink-3)', fontWeight: 600 }}>Propiedades activas</div>
-              <div className="num" style={{ fontFamily: 'var(--font-jakarta)', fontWeight: 700, fontSize: 24, marginTop: 6 }}>{activeProperties}</div>
-              <div style={{ fontSize: 11, color: 'var(--ink-3)', marginTop: 4 }}>En cartera disponible</div>
-            </div>
-          </div>
-        </div>
-
-        {/* ── Row 2: Cierres recientes + Origen accionable ── */}
-        <div className="grid-2col-resp" style={{ display: 'grid', gridTemplateColumns: '1.6fr 1fr', gap: 16 }}>
           <Card>
             <CardHeader>
-              <h3 style={{ fontSize: 14, fontWeight: 700, fontFamily: 'var(--font-jakarta)' }}>Cierres recientes</h3>
-              {recentClosures.length > 0 && <span style={{ fontSize: 12, color: 'var(--ink-3)' }}>últimas escrituras</span>}
-            </CardHeader>
-            {recentClosures.length === 0 ? (
-              <div style={{ padding: '40px 20px', textAlign: 'center', color: 'var(--ink-3)', fontSize: 13 }}>
-                Aún no hay cierres registrados.
-              </div>
-            ) : (
-              <div>
-                {recentClosures.map((c, i) => {
-                  const amount = currency === 'USD' ? fmtUSD(c.usd) : fmtARS(c.usd * dollarRate)
-                  return (
-                    <div key={c.id} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '12px 20px', borderBottom: i < recentClosures.length - 1 ? '1px solid var(--border)' : undefined }}>
-                      <div style={{ width: 30, height: 30, borderRadius: '50%', background: 'var(--success-soft)', display: 'grid', placeItems: 'center', flexShrink: 0 }}>
-                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--success)" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><path d="M20 6 9 17l-5-5" /></svg>
-                      </div>
-                      <div style={{ flex: 1, minWidth: 0 }}>
-                        <div style={{ fontSize: 13, fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{c.address}</div>
-                        <div style={{ fontSize: 11.5, color: 'var(--ink-3)', marginTop: 2 }}>
-                          {c.date.toLocaleDateString('es-AR', { day: '2-digit', month: 'short', year: 'numeric' })}{c.agent ? ` · ${c.agent}` : ''}
-                        </div>
-                      </div>
-                      <div className="num" style={{ fontSize: 13.5, fontWeight: 700, color: 'var(--success)', flexShrink: 0 }}>{amount}</div>
-                    </div>
-                  )
-                })}
-              </div>
-            )}
-          </Card>
-
-          <Card>
-            <CardHeader>
-              <h3 style={{ fontSize: 14, fontWeight: 700, fontFamily: 'var(--font-jakarta)' }}>Origen de los leads</h3>
+              <h3 style={{ fontSize: 14, fontWeight: 700, fontFamily: 'var(--font-jakarta)' }}>Conversión por canal</h3>
             </CardHeader>
             <div style={{ padding: '16px 20px 8px' }}>
               <DonutChart data={originData} />
@@ -573,8 +537,10 @@ export default function ExecutiveDashboard({ leads, agents, stages = [], dollarR
                   Mejor canal por cierres: <strong>{channels.top.label}</strong> ({channels.top.closed} {channels.top.closed === 1 ? 'cierre' : 'cierres'})
                 </div>
               )}
-              <div style={{ fontSize: 10.5, color: 'var(--ink-3)', fontWeight: 600, letterSpacing: '0.06em', textTransform: 'uppercase', marginBottom: 6 }}>Conversión por canal</div>
-              {channels.arr.filter(c => c.leads > 0).sort((a, b) => b.closed - a.closed || b.leads - a.leads).map(c => {
+              <div style={{ fontSize: 10.5, color: 'var(--ink-3)', fontWeight: 600, letterSpacing: '0.06em', textTransform: 'uppercase', marginBottom: 6 }}>Cierres / leads por origen</div>
+              {channels.arr.filter(c => c.leads > 0).length === 0 ? (
+                <div style={{ padding: '16px 0', textAlign: 'center', color: 'var(--ink-3)', fontSize: 13 }}>Sin leads con origen registrado.</div>
+              ) : channels.arr.filter(c => c.leads > 0).sort((a, b) => b.closed - a.closed || b.leads - a.leads).map(c => {
                 const conv = c.leads > 0 ? Math.round((c.closed / c.leads) * 100) : 0
                 return (
                   <div key={c.label} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '5px 0', fontSize: 12 }}>
@@ -589,23 +555,23 @@ export default function ExecutiveDashboard({ leads, agents, stages = [], dollarR
           </Card>
         </div>
 
-        {/* ── Agent ranking table ── */}
+        {/* ── Row 3: Ranking de agentes (izq) + Cierres recientes (der) ── */}
+        <div className="grid-2col-resp" style={{ display: 'grid', gridTemplateColumns: '1.6fr 1fr', gap: 16 }}>
         <Card>
           <CardHeader>
             <h3 style={{ fontSize: 14, fontWeight: 700, fontFamily: 'var(--font-jakarta)' }}>Ranking del equipo</h3>
           </CardHeader>
           <div>
             <div style={{
-              display: 'grid', gridTemplateColumns: '40px 1fr 120px 100px 100px 140px',
+              display: 'grid', gridTemplateColumns: '30px 1fr 64px 72px 100px',
               padding: '8px 20px', fontSize: 11, color: 'var(--ink-3)',
               fontWeight: 600, letterSpacing: '0.06em', textTransform: 'uppercase',
               borderBottom: '1px solid var(--border)',
             }}>
               <span>#</span><span>Agente</span>
-              <span style={{ textAlign: 'right' }}>Leads asignados</span>
-              <span style={{ textAlign: 'right' }}>Tasa cierre</span>
-              <span style={{ textAlign: 'right' }}>Cierres</span>
-              <span style={{ textAlign: 'right' }}>Comisión estimada</span>
+              <span style={{ textAlign: 'right' }}>Leads</span>
+              <span style={{ textAlign: 'right' }}>Conv.</span>
+              <span style={{ textAlign: 'right' }}>Comisión est.</span>
             </div>
             {agentStats.map((row, i) => {
               const commDisplay = currency === 'USD'
@@ -613,7 +579,7 @@ export default function ExecutiveDashboard({ leads, agents, stages = [], dollarR
                 : fmtARS(row.commission * dollarRate)
               return (
                 <div key={row.agent.id} style={{
-                  display: 'grid', gridTemplateColumns: '40px 1fr 120px 100px 100px 140px',
+                  display: 'grid', gridTemplateColumns: '30px 1fr 64px 72px 100px',
                   padding: '12px 20px', alignItems: 'center',
                   borderBottom: i < agentStats.length - 1 ? '1px solid var(--border)' : undefined,
                 }}>
@@ -624,16 +590,15 @@ export default function ExecutiveDashboard({ leads, agents, stages = [], dollarR
                       <span style={{ fontSize: 13, color: 'var(--ink-3)', fontWeight: 600 }}>{i + 1}</span>
                     )}
                   </div>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 10, minWidth: 0 }}>
                     <Avatar initials={row.agent.initials || row.agent.name.slice(0, 2).toUpperCase()} size={32} />
-                    <div>
-                      <div style={{ fontSize: 13, fontWeight: 600 }}>{row.agent.name}</div>
-                      <div style={{ fontSize: 11, color: 'var(--ink-3)' }}>{row.agent.role}</div>
+                    <div style={{ minWidth: 0 }}>
+                      <div style={{ fontSize: 13, fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{row.agent.name}</div>
+                      <div style={{ fontSize: 11, color: 'var(--ink-3)' }}>{row.closed} {row.closed === 1 ? 'cierre' : 'cierres'}</div>
                     </div>
                   </div>
                   <div className="num" style={{ textAlign: 'right', fontWeight: 600, fontSize: 13 }}>{row.total}</div>
                   <div className="num" style={{ textAlign: 'right', fontSize: 13, color: 'var(--ink-2)' }}>{row.rate}%</div>
-                  <div className="num" style={{ textAlign: 'right', fontWeight: 600, fontSize: 13, color: 'var(--success)' }}>{row.closed}</div>
                   <div className="num" style={{ textAlign: 'right', fontWeight: 700, fontSize: 13, color: 'var(--gold)' }}>{commDisplay}</div>
                 </div>
               )
@@ -643,6 +608,39 @@ export default function ExecutiveDashboard({ leads, agents, stages = [], dollarR
             )}
           </div>
         </Card>
+
+        <Card>
+          <CardHeader>
+            <h3 style={{ fontSize: 14, fontWeight: 700, fontFamily: 'var(--font-jakarta)' }}>Cierres recientes</h3>
+            {recentClosures.length > 0 && <span style={{ fontSize: 12, color: 'var(--ink-3)' }}>últimas escrituras</span>}
+          </CardHeader>
+          {recentClosures.length === 0 ? (
+            <div style={{ padding: '40px 20px', textAlign: 'center', color: 'var(--ink-3)', fontSize: 13 }}>
+              Aún no hay cierres registrados.
+            </div>
+          ) : (
+            <div>
+              {recentClosures.map((c, i) => {
+                const amount = currency === 'USD' ? fmtUSD(c.usd) : fmtARS(c.usd * dollarRate)
+                return (
+                  <div key={c.id} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '12px 20px', borderBottom: i < recentClosures.length - 1 ? '1px solid var(--border)' : undefined }}>
+                    <div style={{ width: 30, height: 30, borderRadius: '50%', background: 'var(--success-soft)', display: 'grid', placeItems: 'center', flexShrink: 0 }}>
+                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--success)" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><path d="M20 6 9 17l-5-5" /></svg>
+                    </div>
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ fontSize: 13, fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{c.address}</div>
+                      <div style={{ fontSize: 11.5, color: 'var(--ink-3)', marginTop: 2 }}>
+                        {c.date.toLocaleDateString('es-AR', { day: '2-digit', month: 'short', year: 'numeric' })}{c.agent ? ` · ${c.agent}` : ''}
+                      </div>
+                    </div>
+                    <div className="num" style={{ fontSize: 13.5, fontWeight: 700, color: 'var(--success)', flexShrink: 0 }}>{amount}</div>
+                  </div>
+                )
+              })}
+            </div>
+          )}
+        </Card>
+        </div>
 
       </div>
 

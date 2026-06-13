@@ -1,13 +1,17 @@
+import { redirect } from 'next/navigation'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { ensureFreshDollarRate } from '@/lib/dollar'
-import { getViewer, leadOwnerId } from '@/lib/viewer'
+import { getViewer } from '@/lib/viewer'
 import ExecutiveDashboard from '@/components/dashboard/executive-dashboard'
 import type { Organization, Lead } from '@/lib/types'
 
 export const dynamic = 'force-dynamic'
 
 export default async function DashboardPage() {
-  const { agent: viewer, isAdmin } = await getViewer()
+  const { isAdmin } = await getViewer()
+
+  // El Dashboard Ejecutivo es la vista gerencial del dueño. El agente va a su Panel.
+  if (!isAdmin) redirect('/sales')
 
   let supabase
   try {
@@ -36,16 +40,15 @@ export default async function DashboardPage() {
     console.error('[DashboardPage] leads query error:', leadsRes.error)
   }
 
-  // El Admin ve los números de todo el equipo; cada agente, los suyos.
+  // Vista gerencial: el Admin ve los números de todo el equipo.
   const all = (leadsRes.data ?? []) as Lead[]
-  const visible = isAdmin ? all : all.filter(l => leadOwnerId(l) === viewer?.id)
 
   // Cotización automática: si el último update tiene +6hs, refresca de dolarapi.
   const org = await ensureFreshDollarRate(orgRes.data as Organization | null)
 
   return (
     <ExecutiveDashboard
-      leads={visible}
+      leads={all}
       agents={agentsRes.data ?? []}
       stages={stagesRes.data ?? []}
       dollarRate={org?.dollar_rate ?? 1200}

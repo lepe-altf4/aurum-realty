@@ -122,10 +122,12 @@ button { font-family: inherit; cursor: pointer; }
 
   /* Grids de stats apiladas */
   .stat-grid-5 { grid-template-columns: repeat(2, 1fr) !important; }
+  .stat-grid-4 { grid-template-columns: repeat(2, 1fr) !important; }
   .stat-grid-3 { grid-template-columns: 1fr !important; }
   .grid-2col-resp { grid-template-columns: 1fr !important; }
 }
 
 @media (max-width: 560px) {
   .stat-grid-5 { grid-template-columns: 1fr 1fr !important; }
+  .stat-grid-4 { grid-template-columns: 1fr 1fr !important; }
 }
