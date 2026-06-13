@@ -15,6 +15,8 @@ export default function LeadDrawer({ lead, stages, onClose, onMove, onUpdate }: 
   const [note, setNote] = useState('')
   const [activities, setActivities] = useState<Activity[]>([])
   const [submitting, setSubmitting] = useState(false)
+  const [loggingContact, setLoggingContact] = useState(false)
+  const [contactDone, setContactDone] = useState(false)
   const [showStageMenu, setShowStageMenu] = useState(false)
   const [showSchedule, setShowSchedule] = useState(false)
   const [scheduleDate, setScheduleDate] = useState('')
@@ -36,6 +38,33 @@ export default function LeadDrawer({ lead, stages, onClose, onMove, onUpdate }: 
       .order('created_at', { ascending: false })
       .then(({ data }) => data && setActivities(data))
   }, [lead.id])
+
+  // "Registré contacto": registra una actividad de contacto y resetea el
+  // contador de días sin contacto al instante (el trigger lo hace en la base).
+  async function registerContact() {
+    if (loggingContact) return
+    setLoggingContact(true)
+    const { data: { user } } = await supabase.auth.getUser()
+    const { data: agent } = user ? await supabase.from('agents').select('id').eq('auth_user_id', user.id).single() : { data: null }
+    const base = { lead_id: lead.id, agent_id: agent?.id ?? null, description: 'Contacto registrado con el cliente.' }
+    let { data: newActivity } = await supabase
+      .from('activities')
+      .insert({ ...base, type: 'Contacto' })
+      .select('*, agent:agents(*)')
+      .single()
+    if (!newActivity) {
+      // Fallback si la migración 010 (tipo Contacto) no corrió todavía
+      const retry = await supabase.from('activities').insert({ ...base, type: 'Nota' }).select('*, agent:agents(*)').single()
+      newActivity = retry.data
+    }
+    if (newActivity) {
+      setActivities(prev => [newActivity!, ...prev])
+      onUpdate({ ...lead, days_without_contact: 0, last_contact_at: newActivity.created_at })
+      setContactDone(true)
+      setTimeout(() => setContactDone(false), 2500)
+    }
+    setLoggingContact(false)
+  }
 
   async function registerNote() {
     const text = note.trim()
@@ -225,7 +254,7 @@ ${lead.property ? `
   }
 
   const activityIcon: Record<string, string> = {
-    Nota: '📝', Llamada: '📞', Email: '✉️', WhatsApp: '💬', Visita: '🏠', Cambio_etapa: '→',
+    Nota: '📝', Llamada: '📞', Email: '✉️', WhatsApp: '💬', Visita: '🏠', Cambio_etapa: '→', Contacto: '🤝',
   }
 
   const scoreColor = lead.score >= 70 ? 'var(--success)' : lead.score >= 40 ? 'var(--gold)' : 'var(--danger)'
@@ -279,6 +308,22 @@ ${lead.property ? `
               Llamar
             </button>
           </div>
+
+          {/* Registrar contacto: deja constancia y resetea "días sin contacto" */}
+          <button
+            onClick={registerContact}
+            disabled={loggingContact}
+            style={{
+              marginTop: 8, width: '100%', justifyContent: 'center', display: 'inline-flex', alignItems: 'center', gap: 8,
+              padding: '10px 14px', borderRadius: 'var(--radius)', fontWeight: 600, fontSize: 13,
+              border: `1px solid ${contactDone ? 'var(--success)' : 'var(--border-strong)'}`,
+              background: contactDone ? 'var(--success-soft)' : 'var(--surface)',
+              color: contactDone ? 'var(--success)' : 'var(--ink)',
+              cursor: loggingContact ? 'wait' : 'pointer', transition: 'all .15s',
+            }}>
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round"><path d="M20 6 9 17l-5-5" /></svg>
+            {contactDone ? '¡Contacto registrado!' : loggingContact ? 'Registrando…' : 'Registré contacto'}
+          </button>
         </div>
 
         {/* Scrollable body */}
