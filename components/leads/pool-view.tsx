@@ -1,5 +1,6 @@
 'use client'
-import { useState, useMemo } from 'react'
+import { useState, useMemo, useEffect, useRef } from 'react'
+import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import Topbar from '@/components/ui/topbar'
 import { SourceTag, OpTag, Tag } from '@/components/ui/tags'
@@ -25,6 +26,33 @@ export default function PoolView({ initialLeads, initialClaims, viewer, isAdmin 
   const [claims, setClaims] = useState<LeadClaim[]>(initialClaims)
   const [busyId, setBusyId] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
+  const [liveFlash, setLiveFlash] = useState(false)
+  const router = useRouter()
+
+  // Sincronizar con datos frescos del servidor cuando router.refresh() re-renderiza
+  useEffect(() => { setLeads(initialLeads) }, [initialLeads])
+  useEffect(() => { setClaims(initialClaims) }, [initialClaims])
+
+  // Realtime: cuando otro agente reclama (o se resuelve un reclamo), traer
+  // datos frescos del servidor sin recargar. Escuchamos lead_claims y leads
+  // (RLS define qué eventos recibe cada rol).
+  const refreshRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  useEffect(() => {
+    const supabase = createClient()
+    function ping() {
+      setLiveFlash(true)
+      setTimeout(() => setLiveFlash(false), 1500)
+      // debounce: varios eventos seguidos = un solo refresh
+      if (refreshRef.current) clearTimeout(refreshRef.current)
+      refreshRef.current = setTimeout(() => router.refresh(), 250)
+    }
+    const channel = supabase
+      .channel('pozo-realtime')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'lead_claims' }, ping)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'leads' }, ping)
+      .subscribe()
+    return () => { supabase.removeChannel(channel) }
+  }, [router])
 
   const poolLeads = useMemo(() => leads.filter(l => l.status_asignacion === 'pool'), [leads])
   const pendingLeads = useMemo(() => leads.filter(l => l.status_asignacion === 'pendiente_aprobacion'), [leads])
@@ -80,7 +108,12 @@ export default function PoolView({ initialLeads, initialClaims, viewer, isAdmin 
 
   return (
     <>
-      <Topbar crumb="WORKSPACE · LEADS" title="Pozo de Leads" search={false} />
+      <Topbar crumb="WORKSPACE · LEADS" title="Pozo de Leads" search={false} right={
+        <div title="El pozo se actualiza en tiempo real" style={{ display: 'inline-flex', alignItems: 'center', gap: 7, padding: '6px 12px', borderRadius: 999, border: '1px solid var(--border)', background: liveFlash ? 'var(--success-soft)' : 'var(--surface)', transition: 'background .3s', fontSize: 12, color: 'var(--ink-2)', fontWeight: 600 }}>
+          <span style={{ width: 7, height: 7, borderRadius: '50%', background: 'var(--success)', boxShadow: liveFlash ? '0 0 0 4px var(--success-soft)' : 'none', transition: 'box-shadow .3s' }} />
+          {liveFlash ? 'Actualizando…' : 'En vivo'}
+        </div>
+      } />
 
       <div className="page-pad" style={{ padding: '24px 32px 48px' }}>
 
